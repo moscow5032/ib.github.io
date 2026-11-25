@@ -513,7 +513,7 @@
             h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: c.case_number, onclick: () => openCase(c.id) })),
             h('td', { text: LABELS.division[c.division] }),
             h('td', { text: LABELS.status[c.status] }),
-            h('td', { text: c.investigating_officer_name || 'Not assigned' }),
+            h('td', { text: nameOf(c.investigating_officer_id || c.created_by) }),
             h('td', { text: fmtDate(c.date_opened) }),
             h('td', {}, sel)),
           detail);
@@ -535,8 +535,8 @@
       ]));
     } else if (section === 'assignment') {
       wrap.append(kv([
-        ['Investigating officer', c.investigating_officer_name],
-        ['Assistant officers', c.assistant_officers.join(', ')],
+        ['Investigating officer', nameOf(c.investigating_officer_id || c.created_by)],
+        ['Assistant officers', (c.assistant_officer_ids?.length ? c.assistant_officer_ids.map(nameOf) : (c.assistant_officers || [])).join(', ')],
         ['Prosecutor', c.prosecutor]
       ]));
     } else if (section === 'status') {
@@ -573,9 +573,19 @@
   $('back-btn').addEventListener('click', () => showList());
 
   // ---------- case form ----------
+  function eligibleStaff() {
+    return [...peopleById.values()].filter(p => p.active && p.role !== 'admin' && ['officer','supervisor'].includes(p.role))
+      .sort((a,b) => (a.full_name || a.username).localeCompare(b.full_name || b.username));
+  }
+  function staffOptionLabel(p) { return p.full_name || p.username; }
   function addAssistantRow(value = '') {
-    const input = h('input', { type: 'text', value, maxLength: 100, 'aria-label': 'Assistant officer name', placeholder: 'Full name' });
-    const row = h('div', { className: 'row' }, input,
+    const staff = eligibleStaff();
+    const selected = peopleById.has(value) ? value : (staff.find(p => p.full_name === value || p.username === value)?.id || '');
+    const input = h('select', { 'aria-label': 'Assistant officer' },
+      h('option', { value: '', text: 'Select assistant officer' }),
+      staff.map(p => h('option', { value: p.id, text: staffOptionLabel(p) })));
+    input.value = selected;
+    const row = h('div', { className: 'row assistant-row' }, input,
       h('button', { type: 'button', className: 'secondary', text: 'Remove', onclick: () => row.remove() }));
     $('assistant-list').append(row);
     return input;
@@ -605,10 +615,12 @@
     setChoice('origin', c ? c.origin : null);
     $('f-origin-other').value = (c && c.origin_other) || '';
     $('f-related').value = c ? c.related_case_numbers.join(', ') : '';
-    $('f-officer').value = c ? (c.investigating_officer_name || '') : (me.full_name || me.username);
+    $('f-officer').value = c ? nameOf(c.investigating_officer_id || c.created_by) : (me.full_name || me.username);
+    $('f-officer').readOnly = true;
+    $('f-officer').title = 'The person who creates the case is permanently recorded as Investigating Officer.';
     $('f-prosecutor').value = (c && c.prosecutor) || '';
     $('assistant-list').replaceChildren();
-    (c ? c.assistant_officers : []).forEach(n => addAssistantRow(n));
+    (c ? (c.assistant_officer_ids?.length ? c.assistant_officer_ids : (c.assistant_officers || [])) : []).forEach(n => addAssistantRow(n));
     setChoice('status', c ? c.status : 'active');
     setChoice('closing', c ? c.closing_reason : null);
     $('f-closing-other').value = (c && c.closing_other) || '';
@@ -685,7 +697,8 @@
       origin_other: origin === 'other' ? $('f-origin-other').value.trim() : null,
       related_case_numbers: $('f-related').value.split(',').map(s => s.trim()).filter(Boolean),
       investigating_officer_name: $('f-officer').value.trim(),
-      assistant_officers: [...document.querySelectorAll('#assistant-list input')].map(i => i.value.trim()).filter(Boolean),
+      assistant_officer_ids: [...document.querySelectorAll('#assistant-list select')].map(x => x.value).filter(Boolean),
+      assistant_officers: [...document.querySelectorAll('#assistant-list select')].filter(x => x.value).map(x => nameOf(x.value)),
       prosecutor: $('f-prosecutor').value.trim() || null,
       status,
       closing_reason: closed ? closing : null,
@@ -1031,7 +1044,7 @@
           const row = h('tr', {},
             h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: x.source_number, onclick: () => openChsForm(x) })),
             h('td', { text: CHS_STATUS[x.status] }),
-            h('td', { text: x.handler_name || 'Not assigned' }),
+            h('td', { text: nameOf(x.handler_user_id || x.created_by) }),
             h('td', { text: fmtDate(x.registered_on) }),
             h('td', {}, h('button', { type: 'button', className: 'secondary chs-small', text: 'Open', onclick: () => openChsForm(x) }))
           );
@@ -1048,7 +1061,7 @@
 
   function renderChsReadOnlyActions(record) {
     const box=$('chs-admin-actions');box.replaceChildren();
-    if(!record||!me||!chsCanManage(record)){box.classList.add('hidden');return;}
+    if(!record||!me||me.role!=='admin'){box.classList.add('hidden');return;}
     box.classList.remove('hidden');
     const del=h('button',{type:'button',className:'danger',text:'Delete CHS record'});
     del.onclick=async()=>{if(!confirm('Delete '+record.source_number+'? This cannot be undone.'))return;const {data,error}=await db.from('chs_sources').delete().eq('id',record.id).select('id');if(error||!data?.length){$('chs-form-msg').textContent=errText(error||{code:'42501'});return;}await showChsList('CHS record deleted.');};
@@ -1072,9 +1085,17 @@
     section1.append(h('label',{text:'Linked Case Numbers'}),linkedHolder);
 
     const section2=chsSection(form,'Handling Team');
+    const handlerDisplay=nameOf(d.handler_user_id||d.created_by||me.id);
+    const handlerName=h('input',{id:'chs-handler-name',value:handlerDisplay,readOnly:true,required:true,'aria-label':'Handler (record creator)'});
+    const coOptions=eligibleStaff();
+    const coHandler=h('select',{id:'chs-cohandler-user'},h('option',{value:'',text:'No co-handler'}),coOptions.map(p=>h('option',{value:p.id,text:staffOptionLabel(p)})));
+    coHandler.value=d.co_handler_user_id||'';
+    const coDate=h('input',{id:'chs-cohandler-date',type:'date',value:d.co_handler_date_appointed||''});
+    const handlerDate=h('input',{id:'chs-handler-date',type:'date',value:d.handler_date_appointed||today(),required:true});
     const team=h('div',{className:'scroll'},h('table',{className:'chs-team-table'},h('thead',{},h('tr',{},['Role','Name','Date Appointed'].map(x=>h('th',{text:x})))),h('tbody',{},
-      h('tr',{},h('td',{text:'Handler'}),h('td',{},h('input',{id:'chs-handler-name',value:d.handler_name||'',placeholder:'Full name',required:true})),h('td',{},h('input',{id:'chs-handler-date',type:'date',value:d.handler_date_appointed||'',required:true}))),
-      h('tr',{},h('td',{text:'Co-Handler'}),h('td',{},h('input',{id:'chs-cohandler-name',value:d.co_handler_name||'',placeholder:'Full name'})),h('td',{},h('input',{id:'chs-cohandler-date',type:'date',value:d.co_handler_date_appointed||''}))))));section2.append(team);
+      h('tr',{},h('td',{text:'Handler'}),h('td',{},handlerName),h('td',{},handlerDate)),
+      h('tr',{},h('td',{text:'Co-Handler'}),h('td',{},coHandler),h('td',{},coDate)))));section2.append(team);
+    coHandler.addEventListener('change',()=>{if(!coHandler.value)coDate.value='';coDate.disabled=!coHandler.value;});coDate.disabled=!coHandler.value;
 
     const section3=chsSection(form,'Source Identity');
     const legalName=chsField(section3,'Full Legal Name','full_legal_name','text',{value:identity.full_legal_name||'',required:true});
@@ -1121,13 +1142,14 @@
       if(motivation.values().includes('other')&&!motivationOther.value.trim())return $('chs-form-msg').textContent='Specify the other motivation.';
       if(selectedTypes.includes('other')&&!typeOther.value.trim())return $('chs-form-msg').textContent='Specify the other source type.';
       if(!legalName.value.trim())return $('chs-form-msg').textContent='Enter the source full legal name.';
-      if(!$('chs-handler-name').value.trim()||!$('chs-handler-date').value)return $('chs-form-msg').textContent='Handler name and date appointed are required.';
+      if(!$('chs-handler-date').value)return $('chs-form-msg').textContent='Handler appointment date is required.';
+      if($('chs-cohandler-user').value&&!$('chs-cohandler-date').value)return $('chs-form-msg').textContent='Enter the co-handler appointment date.';
       const terminal=['deactivated','cancelled'].includes(selectedStatus),selectedReasons=reasons.values();
       if(terminal&&(!deactivationDate.value||!selectedReasons.length))return $('chs-form-msg').textContent='For Deactivated or Cancelled sources, enter the date and select at least one reason.';
       if(terminal&&selectedReasons.includes('other')&&!reasonOther.value.trim())return $('chs-form-msg').textContent='Specify the other deactivation / cancellation reason.';
-      const payload={source_number:sourceNo.value,cover_names:covers.values(),registered_on:registered.value,status:selectedStatus,source_categories:selectedCats,source_types:selectedTypes,source_type_other:selectedTypes.includes('other')?typeOther.value.trim():null,handler_name:$('chs-handler-name').value.trim(),handler_date_appointed:$('chs-handler-date').value,co_handler_name:$('chs-cohandler-name').value.trim()||null,co_handler_date_appointed:$('chs-cohandler-date').value||null,linked_case_ids:[...linkedHolder.querySelectorAll('input:checked')].map(x=>x.value),identity:{full_legal_name:legalName.value.trim(),aliases:aliases.values(),age:age.value||null,contact:contact.value.trim()||null,id_verified:idVerified.values().includes('yes'),known_associates:associates.values()},suitability:{motivation:motivation.values(),motivation_other:motivation.values().includes('other')?motivationOther.value.trim():null,access_position:access.value,criminal_history:criminalHistory.value,vulnerability_health_substance:vulnerability.value},criminal_conduct:{authorised:authorised.values().includes('yes'),conduct_authorised:conductAuthorised.value,conduct_prohibited:conductProhibited.value,approving_officer:approvingOfficer.value},intelligence_entries:intel.values(),deactivation_date:terminal?deactivationDate.value:null,deactivation_reasons:terminal?selectedReasons:[],deactivation_other:terminal&&selectedReasons.includes('other')?reasonOther.value.trim():null};
+      const payload={source_number:sourceNo.value,cover_names:covers.values(),registered_on:registered.value,status:selectedStatus,source_categories:selectedCats,source_types:selectedTypes,source_type_other:selectedTypes.includes('other')?typeOther.value.trim():null,handler_date_appointed:$('chs-handler-date').value,co_handler_user_id:$('chs-cohandler-user').value||null,co_handler_date_appointed:$('chs-cohandler-user').value?$('chs-cohandler-date').value:null,linked_case_ids:[...linkedHolder.querySelectorAll('input:checked')].map(x=>x.value),identity:{full_legal_name:legalName.value.trim(),aliases:aliases.values(),age:age.value||null,contact:contact.value.trim()||null,id_verified:idVerified.values().includes('yes'),known_associates:associates.values()},suitability:{motivation:motivation.values(),motivation_other:motivation.values().includes('other')?motivationOther.value.trim():null,access_position:access.value,criminal_history:criminalHistory.value,vulnerability_health_substance:vulnerability.value},criminal_conduct:{authorised:authorised.values().includes('yes'),conduct_authorised:conductAuthorised.value,conduct_prohibited:conductProhibited.value,approving_officer:approvingOfficer.value},intelligence_entries:intel.values(),deactivation_date:terminal?deactivationDate.value:null,deactivation_reasons:terminal?selectedReasons:[],deactivation_other:terminal&&selectedReasons.includes('other')?reasonOther.value.trim():null};
       const submit=buttons.querySelector('button[type="submit"]');submit.disabled=true;
-      const result=existing?await db.from('chs_sources').update(payload).eq('id',existing.id).select():await db.from('chs_sources').insert({...payload,created_by:me.id}).select();submit.disabled=false;
+      const result=existing?await db.from('chs_sources').update(payload).eq('id',existing.id).select():await db.from('chs_sources').insert({...payload,created_by:me.id,handler_user_id:me.id,handler_name:me.full_name||me.username}).select();submit.disabled=false;
       if(result.error||!result.data?.length){$('chs-form-msg').textContent=errText(result.error||{code:'42501'});return;}
       await showChsList(existing?'CHS record updated.':'CHS record created.');
     });
@@ -1767,8 +1789,33 @@ th, td, .kv, .kv dd, .prewrap, #file-list, #file-list * { overflow-wrap: anywher
 }
 </style>
 
-</body>
-</html>
+
+<style>
+/* Case workspace refinement to match the CHS record layout */
+#case-view { display:grid; gap:14px; }
+#case-view > .bar { margin:0 0 2px; padding:0 2px 12px; border-bottom:1px solid #d5d9d1; }
+#case-view > .card { margin:0; padding:22px 24px; border:1px solid #dfe2dc; border-radius:8px; background:#fbfbf9; box-shadow:0 1px 2px rgba(28,32,26,.025); }
+#case-view > .card h2 { margin:0 0 15px; padding-bottom:10px; border-bottom:1px solid #e2e5df; font-size:14px; letter-spacing:.015em; }
+#case-view label { color:#555d52; font-size:12px; font-weight:650; }
+#case-view input, #case-view select, #case-view textarea { border-radius:5px; border-color:#d2d7ce; background:#fff; font-size:13px; }
+#case-view input[readonly] { background:#f0f2ed; color:#4f584b; border-color:#dfe3db; }
+#case-view .choices { gap:7px; }
+#case-view .choice span { border-radius:5px; padding:7px 11px; background:#fff; border-color:#d8ddd5; color:#50584d; font-size:12px; }
+#case-view .choice input:checked + span { background:#e9ede6; border-color:#aab4a3; color:#30382e; }
+#case-view .assistant-row { max-width:560px; align-items:center; margin:7px 0; }
+#case-view .assistant-row select { flex:1; }
+#case-view .assistant-row button { margin:0; min-height:36px; }
+#case-view #assist-add { margin-top:5px; min-height:32px; padding:6px 11px; font-size:11px; }
+#case-view .subform { background:#f7f8f5; border-color:#dfe2dc; border-radius:7px; }
+#case-view .entry { background:#fff; border:1px solid #dfe2dc; border-radius:6px; padding:15px 17px; margin:9px 0; }
+#case-view .filegroup > h3 { color:#555d51; border-bottom:1px solid #dfe2dc; padding-bottom:8px; font-size:11px; text-transform:uppercase; letter-spacing:.07em; }
+#case-view .case-actions { gap:8px; }
+#case-view .case-actions button { margin:0; }
+#case-view #delete-zone { background:#fbf7f6; border-color:#e5d4d1; }
+@media(max-width:700px){#case-view > .card{padding:17px 15px}#case-view .grid{grid-template-columns:1fr}}
+</style>
+
+
 <style>
 /* Final pass: remove the original blue accent from every File Sections control/state. */
 #files { --accent: #454b43 !important; --accent-text: #ffffff !important; }
@@ -1819,6 +1866,7 @@ th, td, .kv, .kv dd, .prewrap, #file-list, #file-list * { overflow-wrap: anywher
 </style>
 
 
+
 <style>
 /* CHS workspace and status-group presentation */
 .top-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -1857,3 +1905,6 @@ th, td, .kv, .kv dd, .prewrap, #file-list, #file-list * { overflow-wrap: anywher
 #chs-admin-actions{border-color:#e5d4d1;background:#fbf7f6}
 @media(max-width:700px){.top-nav{width:100%}.top-nav button{flex:1}.chs-section{padding:17px 14px}.chs-intel-head{display:none}.chs-intel-row{grid-template-columns:1fr;gap:7px}.chs-team-table{min-width:620px}.chs-repeat-row{align-items:stretch}.chs-repeat-row button{flex:0 0 auto}}
 </style>
+
+</body>
+</html>
