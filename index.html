@@ -1180,11 +1180,12 @@ let selectedFileCategory = 'interview';
 let cachedFiles = { interview:[], exhibit:[], legal:[], organisation:[], person:[], suspects:[] };
 const FILE_TITLES = {
   interview:'Interview Report', exhibit:'Exhibit List', legal:'Legal process',
-  organisation:'Criminal Organisation file', person:'Person file', suspects:'Multiple suspects file'
+  organisation:'Criminal Organisation file', person:'Person file', suspects:'Group Intelligence file'
 };
 const randomDigits = (n=4) => String(crypto.getRandomValues(new Uint32Array(1))[0] % (10**n)).padStart(n,'0');
 const monthYear = (d=today()) => { const x=new Date(d+'T00:00:00'); return String(x.getMonth()+1).padStart(2,'0')+String(x.getFullYear()).slice(-2); };
 const fileNumber = (prefix) => prefix+'-'+randomDigits()+'-'+monthYear();
+const groupFileNumber = () => 'MF-'+monthYear()+'-'+randomDigits(4);
 function field(label, key, type='text', opts={}) {
   const id='ff-'+key+'-'+Math.random().toString(36).slice(2,7);
   let el;
@@ -1328,9 +1329,29 @@ function organisationDisplay(d) {
   wrap.append(orgSection('9. Additional Notes',h('p',{className:'prewrap',text:d.additional_notes||'None recorded.'})));
   return wrap;
 }
+function groupIntelligenceDisplay(d) {
+  const wrap=h('div',{className:'group-intel-display'});
+  const section=(title,content)=>wrap.append(orgSection(title,content));
+  section('1. File Identification',kv([['File Number',d.file_number]]));
+  section('2. Nature of the Group',kv([
+    ['Group Type',(d.group_types||[]).map(x=>x==='other'?'Other'+(d.group_type_other?': '+d.group_type_other:''):({friends:'Friends',family:'Family',workplace:'Workplace',neighbors:'Neighbors'}[x]||x)).join(', ')],
+    ['Structure Evidence',(d.structure_evidence||[]).map(x=>({none:'None',leader_identified:'Leader identified',defined_roles:'Defined roles'}[x]||x)).join(', ')],
+    ['Summary',d.summary]
+  ]));
+  const suspectRows=(d.suspects||[]).map(x=>[x.name||'',x.alias||'',x.age||'',x.alleged_role||'']);
+  section('3. Suspect Index',suspectRows.length?dataTable(['Name','Alias','Age','Alleged Role'],suspectRows):h('p',{className:'notice',text:'No suspects recorded.'}));
+  const r=d.risk||{};
+  section('4. Risk and Welfare Assessment',kv([
+    ['Collusion Risk',r.collusion_risk],['Witness / Victim Intimidation Risk',r.witness_victim_intimidation_risk],
+    ['Risk Between Suspects (e.g. retaliation)',r.risk_between_suspects],['Violence',r.violence],
+    ['Weapons',r.weapons],['Juveniles / Vulnerable Suspects',r.juveniles_vulnerable],
+    ['Juvenile / vulnerable suspect details',(r.juvenile_vulnerable_details||[]).join('\\n')]
+  ]));
+  return wrap;
+}
 function caseFileEntry(f){
  const d=f.details||{};
- const actions=f.file_type==='organisation'?recordActions(f.created_by,'case_files',f.id,'file',()=>openAddForm(f.file_type,f)):null;
+ const actions=['organisation','suspects'].includes(f.file_type)?recordActions(f.created_by,'case_files',f.id,'file',()=>openAddForm(f.file_type,f)):null;
  const box=h('div',{className:'entry'},h('strong',{text:f.name||d.file_number||FILE_TITLES[f.file_type]||'File'}),h('div',{className:'record-subtitle',text:'Added by '+nameOf(f.created_by)+' on '+fmtTime(f.created_at)}));
  if(actions)box.append(actions);
  if(f.file_type==='organisation') box.append(organisationDisplay(d));
@@ -1424,6 +1445,75 @@ function openAddForm(type,existing=null) {
    if(result.error||!result.data?.length){msg.textContent=errText(result.error||{code:'42501'});return;}
    $('add-panel').replaceChildren();await loadFiles();
   });
+ } else if(type==='suspects'){
+   const s=(title)=>form.append(section(title));
+   s('1. File Identification');
+   add('File Number','file_number','text',{value:d.file_number||groupFileNumber(),required:true});
+   f.file_number.readOnly=true;
+   s('2. Nature of the Group');
+   const groupTypes=checkboxOptions('Group Type',[['friends','Friends'],['family','Family'],['workplace','Workplace'],['neighbors','Neighbors'],['other','Other']],d.group_types||[]);
+   form.append(h('label',{text:'Group Type'}),groupTypes.wrap);
+   add('If Other, specify','group_type_other','text',{value:d.group_type_other||''});
+   const groupOtherWrap=f.group_type_other.parentElement;
+   const updateGroupOther=()=>{const show=groupTypes.values().includes('other');groupOtherWrap.classList.toggle('hidden',!show);f.group_type_other.disabled=!show;};
+   groupTypes.wrap.addEventListener('change',updateGroupOther);updateGroupOther();
+   const structure=checkboxOptions('Structure Evidence',[['none','None'],['leader_identified','Leader identified'],['defined_roles','Defined roles']],d.structure_evidence||[]);
+   form.append(h('label',{text:'Structure Evidence'}),structure.wrap);
+   structure.wrap.addEventListener('change',()=>{const none=structure.wrap.querySelector('input[value="none"]');if(none?.checked)structure.wrap.querySelectorAll('input').forEach(x=>{if(x!==none)x.checked=false;});});
+   structure.wrap.addEventListener('change',()=>{const checked=[...structure.wrap.querySelectorAll('input:checked')];if(checked.some(x=>x.value!=='none')){const none=structure.wrap.querySelector('input[value="none"]');if(none)none.checked=false;}});
+   add('Summary','summary','textarea',{rows:6,wide:true,placeholder:'Summary: what do they do, who is suspected, why are they at interest?',value:d.summary||''});
+   s('3. Suspect Index');
+   const suspects=repeatable('suspect',[
+     {key:'name',label:'Name'},{key:'alias',label:'Alias'},
+     {key:'age',label:'Age',type:'number'},{key:'alleged_role',label:'Alleged Role',wide:true}
+   ],(d.suspects&&d.suspects.length?d.suspects:[{},{},{}]));
+   form.append(suspects.holder);
+   s('4. Risk and Welfare Assessment');
+   const risk=d.risk||{};
+   const riskChoice=(label,key,options)=>{
+     const normal=v=>v.toLowerCase().replace(/[^a-z]+/g,'_');
+     const c=checkboxOptions(label,options.map(v=>[normal(v),v]),risk[key]?[normal(risk[key])]:[],true);
+     form.append(h('label',{text:label}),c.wrap);
+     return {value:()=>options.find(x=>normal(x)===c.values()[0])||null};
+   };
+   const collusion=riskChoice('Collusion Risk','collusion_risk',['High','Medium','Low']);
+   const intimidation=riskChoice('Witness / Victim Intimidation Risk','witness_victim_intimidation_risk',['High','Medium','Low']);
+   const between=riskChoice('Risk Between Suspects (e.g., retaliation)','risk_between_suspects',['High','Medium','Low']);
+   const violence=riskChoice('Violence','violence',['High','Medium','Low']);
+   const weapons=riskChoice('Weapons','weapons',['Known','Suspected','None known']);
+   const juvenile=checkboxOptions('Juveniles / Vulnerable Suspects',[['none','None'],['yes','Yes']],risk.juveniles_vulnerable==='Yes'?['yes']:risk.juveniles_vulnerable==='None'?['none']:[],true);
+   form.append(h('label',{text:'Juveniles / Vulnerable Suspects'}),juvenile.wrap);
+   const juvenileHolder=h('div',{className:'group-juvenile-details'});
+   const juvenileRows=repeatable('person',[{key:'details',label:'Name / details',wide:true,placeholder:'Enter the relevant juvenile or vulnerable suspect details'}],(risk.juvenile_vulnerable_details||[]).map(details=>({details})));
+   juvenileHolder.append(juvenileRows.holder);form.append(juvenileHolder);
+   const updateJuvenile=()=>{const yes=juvenile.values()[0]==='yes';juvenileHolder.classList.toggle('hidden',!yes);};
+   juvenile.wrap.addEventListener('change',updateJuvenile);updateJuvenile();
+   submitButtons(form,msg,existing?'Save Group Intelligence file':'Add Group Intelligence file');
+   form.addEventListener('submit',async e=>{
+     e.preventDefault();msg.textContent='';
+     if(groupTypes.values().includes('other')&&!f.group_type_other.value.trim()){msg.textContent='Specify the other group type.';return;}
+     const details={
+       file_number:f.file_number.value.trim(),group_types:groupTypes.values(),
+       group_type_other:groupTypes.values().includes('other')?f.group_type_other.value.trim():null,
+       structure_evidence:structure.values(),summary:f.summary.value.trim(),
+       suspects:suspects.values(),
+       risk:{
+         collusion_risk:collusion.value(),witness_victim_intimidation_risk:intimidation.value(),
+         risk_between_suspects:between.value(),violence:violence.value(),weapons:weapons.value(),
+         juveniles_vulnerable:juvenile.values()[0]==='yes'?'Yes':'None',
+         juvenile_vulnerable_details:juvenile.values()[0]==='yes'?juvenileRows.values().map(x=>x.details).filter(Boolean):[]
+       }
+     };
+     const payload={name:details.file_number,details};
+     const result=existing
+       ?await db.from('case_files').update(payload).eq('id',old.id).select()
+       :await db.from('case_files').insert({case_id:cid,file_type:'suspects',...payload,created_by:me.id}).select();
+     if(result.error||!result.data?.length){
+       msg.textContent=result.error?.code==='23505'?'That file number was already generated. Close and reopen the form to generate another.':errText(result.error||{code:'42501'});
+       return;
+     }
+     $('add-panel').replaceChildren();await loadFiles();
+   });
  } else if(type==='organisation'){
   const s=(t)=>form.append(section(t));
   s('1. Organisation Identification');add('File Number','file_number','text',{value:d.file_number||fileNumber('NV'),required:true});f.file_number.readOnly=true;add('Primary Number','primary_number','text',{value:d.primary_number||''});add('Known Aliases','known_aliases','textarea',{rows:2,value:d.known_aliases||''});
@@ -1911,4 +2001,15 @@ th, td, .kv, .kv dd, .prewrap, #file-list, #file-list * { overflow-wrap: anywher
 .case-section .choices { gap:6px; }
 .case-section .choice span { padding:7px 11px; font-size:12px; }
 .case-section #reopen-btn { margin-top:12px; }
+</style>
+
+<style>
+.group-intel-display .org-display-section { margin:16px 0 20px; }
+.group-intel-display .org-display-section h4 { margin:0 0 9px; padding-bottom:8px; border-bottom:1px solid #dfe2dc; color:#4e574b; font-size:11px; text-transform:uppercase; letter-spacing:.07em; }
+.group-intel-display table { width:100%; }
+.group-juvenile-details { margin-top:8px; }
+.group-juvenile-details.hidden { display:none; }
+.repeat-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 12px; padding:10px; margin:8px 0; border:1px solid #e1e4de; border-radius:6px; background:#fff; }
+.repeat-row .wide { grid-column:1/-1; }
+@media(max-width:700px){.repeat-row{grid-template-columns:1fr}.repeat-row .wide{grid-column:auto}}
 </style>
