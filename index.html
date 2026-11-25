@@ -912,6 +912,22 @@
   .field-hint { color:var(--muted); font-size:.88rem; margin:4px 0; }
   .link-list a { overflow-wrap:anywhere; }
   @media(max-width:600px) { #list-view > .bar { flex-wrap:wrap; } .repeat-row { grid-template-columns:1fr; } .repeat-row .wide { grid-column:auto; } }
+  /* File record presentation */
+  #file-list, #file-list * { min-width: 0; }
+  #file-list { overflow-wrap: anywhere; }
+  #file-list .entry { padding: 16px; margin: 12px 0; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+  #file-list .entry > strong { display:block; font-size:1.02rem; overflow-wrap:anywhere; }
+  #file-list .record-actions { display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 0; }
+  #file-list .record-actions button { margin:0; min-width:88px; }
+  #file-list .kv { grid-template-columns:minmax(130px, 220px) minmax(0, 1fr); gap:7px 16px; }
+  #file-list .kv dt, #file-list .kv dd { overflow-wrap:anywhere; }
+  #file-list .kv dd { white-space:pre-wrap; }
+  .org-display-section { border-top:1px solid var(--line); margin-top:14px; padding-top:8px; }
+  .org-display-section h4 { margin:4px 0 8px; font-size:.96rem; }
+  .org-repeat-item { padding:9px 12px; margin:7px 0; border-left:3px solid var(--line); background:var(--bg); border-radius:4px; overflow-wrap:anywhere; }
+  .org-repeat-item p { margin:3px 0; }
+  .record-subtitle { color:var(--muted); font-size:.9rem; margin-top:3px; overflow-wrap:anywhere; }
+  @media(max-width:600px) { #file-list .kv { grid-template-columns:1fr; gap:1px; } #file-list .kv dd { margin-bottom:8px; } }
 </style>
 <script>
 // ---------- Updated file-section experience ----------
@@ -999,7 +1015,7 @@ async function deleteOwnedRecord(table,id,label) {
 }
 function recordActions(ownerId,table,id,label,onEdit) {
  if(!canEditOwned(ownerId))return null;
- return h('div',{className:'case-actions'},h('button',{type:'button',className:'secondary',text:'Edit',onclick:onEdit}),h('button',{type:'button',className:'danger',text:'Delete',onclick:()=>deleteOwnedRecord(table,id,label)}));
+ return h('div',{className:'record-actions'},h('button',{type:'button',className:'secondary',text:'Edit',onclick:onEdit}),h('button',{type:'button',className:'danger',text:'Delete',onclick:()=>deleteOwnedRecord(table,id,label)}));
 }
 function linkNodes(urls) {
   const list=h('ul',{className:'link-list'});
@@ -1012,16 +1028,72 @@ function interviewEntry(r) {
   const meta=h('div',{className:'who',text:fmtDate(r.interview_date)+(r.location?' at '+r.location:'')+'. Interviewed by '+nameOf(r.interviewed_by)+'.'});
   const actions=recordActions(r.interviewed_by,'interview_reports',r.id,'interview report',()=>openInterviewForm(r));
   const detail=h('details',{},h('summary',{text:'View report details'}),kv([
-    ['File identification',d.file_number],['Division',LABELS.division[d.division]||d.division],['Start / end',((d.start_time||'')+' – '+(d.end_time||''))],['Method',d.method],['Recorded',d.recorded],['Interviewee address',d.address],['Language / interpreter',d.language_needed+(d.language?' — '+d.language:'')],['ID verified',d.id_verified],['Contact',d.contact],['Vulnerability / support',d.vulnerability+(d.vulnerability_notes?' — '+d.vulnerability_notes:'')],['Persons present',(d.persons_present||[]).map(p=>[p.name,p.role,p.agency,p.throughout?'present throughout':'not throughout'].filter(Boolean).join(' — ')).join('\n')],['Pre-interview checks',JSON.stringify(d.pre_checks||{})],['Narrative interview',r.summary],['Observations',d.observations],['Video / audio files',(d.media_links||[]).join('\n')]
+    ['File identification',d.file_number],['Division',LABELS.division[d.division]||d.division],['Start / end',((d.start_time||'')+' – '+(d.end_time||''))],['Method',d.method],['Recorded',d.recorded],['Interviewee address',d.address],['Language / interpreter',d.language_needed+(d.language?' — '+d.language:'')],['ID verified',d.id_verified],['Contact',d.contact],['Vulnerability / support',d.vulnerability+(d.vulnerability_notes?' — '+d.vulnerability_notes:'')],['Persons present',(d.persons_present||[]).map(p=>[p.name,p.role,p.agency,p.throughout?'present throughout':'not throughout'].filter(Boolean).join(' — ')).join('\n')],['Pre-interview checks',`Purpose explained? ${d.pre_checks?.purpose_explained||'Not recorded'}; Rights advisement? ${d.pre_checks?.caution||'Not recorded'}; Legal representation? ${d.pre_checks?.legal_representation||'Not recorded'}`],['Narrative interview',r.summary],['Observations',d.observations],['Video / audio files',(d.media_links||[]).join('\n')]
   ]));
   return h('div',{className:'entry'},title,meta,actions,detail);
 }
 function exhibitEntry(x){return h('div',{className:'entry'},h('strong',{text:'Exhibit #'+x.exhibit_ref}),recordActions(x.collected_by,'exhibits',x.id,'exhibit',()=>openAddForm('exhibit',x)),kv([['Description',x.description],['Date',fmtDate(x.collected_on)],['Links',(x.link_urls||[]).join('\n')],['Collected by',nameOf(x.collected_by)]]));}
 function legalEntry(x){return h('div',{className:'entry'},h('strong',{text:LABELS.legType[x.process_type]||x.process_type||'Legal process'}),kv([['Link',x.link_url],['Date issued',fmtDate(x.date_issued)],['Status',LABELS.legStatus[x.status]||x.status]]));}
+function orgSection(title, content) {
+  const box=h('section',{className:'org-display-section'});
+  box.append(h('h4',{text:title}));
+  if(content) box.append(content);
+  return box;
+}
+function orgRows(items, fields) {
+  const wrap=h('div',{});
+  if(!items?.length) { wrap.append(h('p',{className:'notice',text:'No entries recorded.'})); return wrap; }
+  items.forEach((item,index)=>{
+    const card=h('div',{className:'org-repeat-item'});
+    card.append(h('strong',{text:fields[0][1]+(items.length>1?' '+(index+1):'')}));
+    fields.forEach(([key,label],i)=>{
+      const value=item?.[key];
+      if(value==null||String(value).trim()==='')return;
+      card.append(h('p',{},h('b',{text:label+': '}),document.createTextNode(String(value))));
+    });
+    wrap.append(card);
+  });
+  return wrap;
+}
+function organisationDisplay(d) {
+  const wrap=h('div',{className:'organisation-display'});
+  wrap.append(orgSection('1. Organisation Identification',kv([
+    ['File number',d.file_number],['Primary number',d.primary_number],['Known aliases',d.known_aliases]
+  ])));
+  wrap.append(orgSection('2. Organisation Overview',kv([
+    ['Estimated size',d.estimated_size],['Active since',d.active_since],['Area of operation',d.area_of_operation],['Structure type',d.structure_type],['Summary',d.summary]
+  ])));
+  const activity=h('div',{},h('h5',{text:'Primary activities'}),orgRows(d.primary_activities,[['activity','Activity']]),h('h5',{text:'Secondary activities'}),orgRows(d.secondary_activities,[['activity','Activity']]));
+  wrap.append(orgSection('3. Criminal Activity',activity));
+  wrap.append(orgSection('4. Structure and Hierarchy',orgRows(d.hierarchy,[['position','Position'],['name','Name'],['aliases','Aliases'],['responsibilities','Role / responsibilities']])));
+  wrap.append(orgSection('5. Members and Associate Index',orgRows(d.members,[['name','Name'],['alias','Alias'],['age','Age'],['role','Role / responsibilities']])));
+  wrap.append(orgSection('6. Locations and Premises',orgRows(d.locations,[['address','Address / location'],['use','Use / significance'],['occupant','Occupant / owner']])));
+  wrap.append(orgSection('7. Associations and Rival Groups',orgRows(d.associations,[['entity','Organisation / person'],['relationship','Relationship'],['details','Nature / details']])));
+  const risk=d.risk||{};
+  wrap.append(orgSection('8. Risk and Threat Assessment',kv([
+    ['Violence',risk.violence],['Firearms',risk.firearms],['Weapons',risk.weapons],['Counter-surveillance awareness',risk.counter_surveillance],['Witness intimidation risk',risk.witness_intimidation],['Officer safety notes',risk.officer_safety],['Public safety / vulnerable persons',risk.public_safety]
+  ])));
+  wrap.append(orgSection('9. Additional Notes',h('p',{className:'prewrap',text:d.additional_notes||'None recorded.'})));
+  return wrap;
+}
 function caseFileEntry(f){
- const d=f.details||{}; const actions=f.file_type==='organisation'?recordActions(f.created_by,'case_files',f.id,'file',()=>openAddForm(f.file_type,f)):null; const box=h('div',{className:'entry'},h('strong',{text:f.name||d.file_number||FILE_TITLES[f.file_type]}),h('div',{className:'who',text:'Added by '+nameOf(f.created_by)+' on '+fmtTime(f.created_at)}),actions);
- const lines=[]; const walk=(v,p='')=>{if(v==null||v==='')return;if(Array.isArray(v)){if(v.length)lines.push([p,v.map(x=>typeof x==='object'?Object.entries(x).map(([a,b])=>a+': '+b).join('; '):x).join('\n')]);}else if(typeof v==='object'){Object.entries(v).forEach(([k,x])=>walk(x,k.replaceAll('_',' ')));}else lines.push([p.replaceAll('_',' '),String(v)]);};
- Object.entries(d).forEach(([k,v])=>walk(v,k)); box.append(kv(lines));return box;
+ const d=f.details||{};
+ const actions=f.file_type==='organisation'?recordActions(f.created_by,'case_files',f.id,'file',()=>openAddForm(f.file_type,f)):null;
+ const box=h('div',{className:'entry'},h('strong',{text:f.name||d.file_number||FILE_TITLES[f.file_type]||'File'}),h('div',{className:'record-subtitle',text:'Added by '+nameOf(f.created_by)+' on '+fmtTime(f.created_at)}));
+ if(actions)box.append(actions);
+ if(f.file_type==='organisation') box.append(organisationDisplay(d));
+ else {
+   const lines=[];
+   const walk=(v,p='')=>{
+     if(v==null||v==='')return;
+     if(Array.isArray(v)){
+       if(v.length) lines.push([p,v.map(x=>typeof x==='object'?Object.entries(x).map(([a,b])=>a.replaceAll('_',' ')+': '+b).join('; '):x).join('\n')]);
+     } else if(typeof v==='object') Object.entries(v).forEach(([k,x])=>walk(x,k.replaceAll('_',' ')));
+     else lines.push([p.replaceAll('_',' '),String(v)]);
+   };
+   Object.entries(d).forEach(([k,v])=>walk(v,k)); box.append(kv(lines));
+ }
+ return box;
 }
 function openInterviewForm(existing=null) {
  if(existing&&!canEditOwned(existing.interviewed_by)){ $('file-msg').textContent='You can only edit reports you created.'; return; }
