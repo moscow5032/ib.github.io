@@ -272,16 +272,16 @@
 
   // What the "Add" menu offers, and the fields of the three flexible file types
   const FILE_TYPES = {
-    interview:    'Interview Report',
-    exhibit:      'Exhibit List',
-    legal:        'Legal process (warrant, subpoena, etc.)',
-    organisation: 'Criminal Organisation file',
-    person:       'Person file',
-    suspects:     'Multiple suspects file'
+    interview:    'Add interview report',
+    exhibit:      'Add exhibit list',
+    legal:        'Add legal process',
+    organisation: 'Add criminal organization file',
+    person:       'Suspect File',
+    suspects:     'Add group control file'
   };
   const CASE_FILE_FIELDS = {
     organisation: [
-      { key: 'name', label: 'Organisation name', required: true },
+      { key: 'name', label: 'Organization name', required: true },
       { key: 'aliases', label: 'Also known as' },
       { key: 'structure', label: 'Structure and hierarchy', type: 'textarea' },
       { key: 'territory', label: 'Area of operation' },
@@ -481,7 +481,7 @@
       const lines = [];
       (iv.data || []).forEach(x => lines.push('Interview report: ' + x.interviewee_name + ' (' + LABELS.intRole[x.interviewee_role] + ')'));
       (ex.data || []).forEach(x => lines.push('Exhibit: ' + x.exhibit_ref + ' - ' + x.description));
-      (lg.data || []).forEach(x => lines.push('Legal process: ' + LABELS.legType[x.process_type] + (x.reference_number ? ' ' + x.reference_number : '')));
+      (lg.data || []).forEach(x => lines.push('Legal Process: ' + LABELS.legType[x.process_type] + (x.reference_number ? ' ' + x.reference_number : '')));
       (cf.data || []).forEach(x => lines.push(FILE_TYPES[x.file_type] + ': ' + x.name));
       wrap.append(lines.length ? h('ul', {}, lines.map(l => h('li', { text: l }))) : h('p', { className: 'notice', text: 'No files added yet.' }));
     }
@@ -798,12 +798,12 @@
         (x.collected_on ? fmtDate(x.collected_on) + ' by ' : 'By ') + nameOf(x.collected_by),
         x.storage_location || '',
         canManage ? statusSelect('exhibits', x.id, LABELS.exStatus, x.status) : LABELS.exStatus[x.status]]))));
-    if (lg.data.length) groups.push(h('div', { className: 'filegroup' }, h('h3', { text: 'Legal processes (' + lg.data.length + ')' }),
+    if (lg.data.length) groups.push(h('div', { className: 'filegroup' }, h('h3', { text: 'Legal Processes (' + lg.data.length + ')' }),
       dataTable(['Type', 'Reference', 'Issuing authority', 'Requested', 'Issued', 'Status'], lg.data.map(x => [
         h('div', {}, LABELS.legType[x.process_type], x.notes ? h('div', { className: 'who', text: x.notes }) : null),
         x.reference_number || '', x.issuing_authority || '', fmtDate(x.date_requested), fmtDate(x.date_issued),
         canManage ? statusSelect('legal_processes', x.id, LABELS.legStatus, x.status) : LABELS.legStatus[x.status]]))));
-    for (const [type, title] of [['organisation', 'Criminal organisation files'], ['person', 'Person files'], ['suspects', 'Multiple suspects files']]) {
+    for (const [type, title] of [['organisation', 'Criminal organization files'], ['person', 'Suspect Files'], ['suspects', 'Group Control Files']]) {
       const items = cf.data.filter(f => f.file_type === type);
       if (items.length) groups.push(group(title, items.map(caseFileEntry)));
     }
@@ -830,7 +830,7 @@
       form.append(h('label', { htmlFor: input.id, text: f.label }), input);
     }
     form.append(h('div', { className: 'case-actions', style: 'margin-top:16px' },
-      h('button', { type: 'submit', text: 'Add to file', style: 'margin-top:0' }),
+      h('button', { type: 'submit', text: 'Add to case', style: 'margin-top:0' }),
       h('button', { type: 'button', className: 'secondary', text: 'Cancel', onclick: () => $('add-panel').replaceChildren() })), msg);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -865,7 +865,7 @@
         { key: 'storage_location', label: 'Where it is stored' }
       ], (v) => db.from('exhibits').insert({ case_id: cid, ...v }));
     } else if (type === 'legal') {
-      form = addForm('Add a legal process', [
+      form = addForm('Add a Legal Process', [
         { key: 'process_type', label: 'Type', type: 'select', options: LABELS.legType },
         { key: 'reference_number', label: 'Reference number' },
         { key: 'issuing_authority', label: 'Issuing authority (e.g. court)' },
@@ -1179,13 +1179,14 @@
 let selectedFileCategory = 'interview';
 let cachedFiles = { interview:[], exhibit:[], legal:[], organisation:[], person:[], suspects:[] };
 const FILE_TITLES = {
-  interview:'Interview Report', exhibit:'Exhibit List', legal:'Legal process',
-  organisation:'Criminal Organisation file', person:'Person file', suspects:'Group Intelligence file'
+  interview:'Interview Report', exhibit:'Exhibit List', legal:'Legal Process',
+  organisation:'Criminal Organization File', person:'Suspect File', suspects:'Group Control File'
 };
 const randomDigits = (n=4) => String(crypto.getRandomValues(new Uint32Array(1))[0] % (10**n)).padStart(n,'0');
 const monthYear = (d=today()) => { const x=new Date(d+'T00:00:00'); return String(x.getMonth()+1).padStart(2,'0')+String(x.getFullYear()).slice(-2); };
 const fileNumber = (prefix) => prefix+'-'+randomDigits()+'-'+monthYear();
 const groupFileNumber = () => 'MF-'+monthYear()+'-'+randomDigits(4);
+const individualFileNumber = () => 'EI-'+monthYear()+'-'+randomDigits(4);
 function field(label, key, type='text', opts={}) {
   const id='ff-'+key+'-'+Math.random().toString(36).slice(2,7);
   let el;
@@ -1281,7 +1282,7 @@ function interviewEntry(r) {
 function exhibitEntry(x){return h('div',{className:'entry'},h('strong',{text:'Exhibit #'+x.exhibit_ref}),recordActions(x.collected_by,'exhibits',x.id,'exhibit',()=>openAddForm('exhibit',x)),kv([['Description',x.description],['Date',fmtDate(x.collected_on)],['Links',(x.link_urls||[]).join('\n')],['Collected by',nameOf(x.collected_by)]]));}
 function legalEntry(x){
   const box=h('div',{className:'entry'},
-    h('strong',{text:LABELS.legType[x.process_type]||x.process_type||'Legal process'}),
+    h('strong',{text:LABELS.legType[x.process_type]||x.process_type||'Legal Process'}),
     h('div',{className:'record-subtitle',text:'Added by '+nameOf(x.created_by)+' on '+fmtTime(x.created_at)}),
     recordActions(x.created_by,'legal_processes',x.id,'legal process',()=>openAddForm('legal',x)),
     kv([['Link',x.link_url],['Date issued',fmtDate(x.date_issued)],['Status',LABELS.legStatus[x.status]||x.status]]));
@@ -1310,10 +1311,10 @@ function orgRows(items, fields) {
 }
 function organisationDisplay(d) {
   const wrap=h('div',{className:'organisation-display'});
-  wrap.append(orgSection('1. Organisation Identification',kv([
-    ['File number',d.file_number],['Primary number',d.primary_number],['Known aliases',d.known_aliases]
+  wrap.append(orgSection('1. Organization Identification',kv([
+    ['File number',d.file_number],['Primary name',d.primary_number],['Known aliases',d.known_aliases]
   ])));
-  wrap.append(orgSection('2. Organisation Overview',kv([
+  wrap.append(orgSection('2. Organization Overview',kv([
     ['Estimated size',d.estimated_size],['Active since',d.active_since],['Area of operation',d.area_of_operation],['Structure type',d.structure_type],['Summary',d.summary]
   ])));
   const activity=h('div',{},h('h5',{text:'Primary activities'}),orgRows(d.primary_activities,[['activity','Activity']]),h('h5',{text:'Secondary activities'}),orgRows(d.secondary_activities,[['activity','Activity']]));
@@ -1321,7 +1322,7 @@ function organisationDisplay(d) {
   wrap.append(orgSection('4. Structure and Hierarchy',orgRows(d.hierarchy,[['position','Position'],['name','Name'],['aliases','Aliases'],['responsibilities','Role / responsibilities']])));
   wrap.append(orgSection('5. Members and Associate Index',orgRows(d.members,[['name','Name'],['alias','Alias'],['age','Age'],['role','Role / responsibilities']])));
   wrap.append(orgSection('6. Locations and Premises',orgRows(d.locations,[['address','Address / location'],['use','Use / significance'],['occupant','Occupant / owner']])));
-  wrap.append(orgSection('7. Associations and Rival Groups',orgRows(d.associations,[['entity','Organisation / person'],['relationship','Relationship'],['details','Nature / details']])));
+  wrap.append(orgSection('7. Associations and Rival Groups',orgRows(d.associations,[['entity','Organization / person'],['relationship','Relationship'],['details','Nature / details']])));
   const risk=d.risk||{};
   wrap.append(orgSection('8. Risk and Threat Assessment',kv([
     ['Violence',risk.violence],['Firearms',risk.firearms],['Weapons',risk.weapons],['Counter-surveillance awareness',risk.counter_surveillance],['Witness intimidation risk',risk.witness_intimidation],['Officer safety notes',risk.officer_safety],['Public safety / vulnerable persons',risk.public_safety]
@@ -1349,12 +1350,26 @@ function groupIntelligenceDisplay(d) {
   ]));
   return wrap;
 }
+function personFileDisplay(d){
+ const wrap=h('div',{className:'person-file-display'}),section=(title,content)=>wrap.append(orgSection(title,content));
+ section('1. File Identification',kv([['File Number',d.file_number]]));
+ section('2. Personal Details',kv([['Full Legal Name',d.full_legal_name],['Aliases / Nicknames',(d.aliases||[]).join('\\n')],['Age',d.age],['Sex / Gender',d.sex_gender],['Nationality',d.nationality],['Languages',d.languages]]));
+ section('3. Physical Description',kv([['Hair',d.hair],['Complexion / Ethnicity',d.complexion_ethnicity],['Scars / Marks / Tattoos',(d.scars_marks_tattoos||[]).join('\\n')],['Eyes',d.eyes],['Facial Hair',(d.facial_hair||[]).join('\\n')],['Other Features',(d.other_features||[]).join('\\n')],['Clothing Style',d.clothing_style]]));
+ const table=(headers,rows)=>rows.length?dataTable(headers,rows):h('p',{className:'notice',text:'No entries recorded.'});
+ section('4. Addresses, Work and Vehicles',table(['Item','Detail','Type / Period'],(d.addresses_work_vehicles||[]).map(x=>[x.item,x.detail,x.type_period])));
+ section('5. How the Person Became a Suspect',kv([['Origin of Suspicion',d.origin_of_suspicion==='other'?'Other: '+(d.origin_other||''):d.origin_of_suspicion],['Grounds for suspicion',d.grounds_for_suspicion]]));
+ section('6. Motive, Means and Opportunity',table(['Factor','Evidence For','Evidence Against / Gaps'],(d.motive_means_opportunity||[]).map(x=>[x.factor,x.evidence_for,x.evidence_against_gaps])));
+ const r=d.risk||{};section('7. Risk and Welfare Assessment',kv([['Violence',r.violence],['Weapons Access',r.weapons_access],['Risk to Victim / Witnesses',r.risk_to_victim_witnesses],['Self-Harm / Suicide Risk',r.self_harm_suicide_risk],['Medical / Mental Health / Substance Use',r.medical_mental_health_substance_use],['Vulnerabilities',r.vulnerabilities],['Vulnerability Details',r.vulnerabilities_details],['Officer Safety Warnings',r.officer_safety_warnings]]));
+ return wrap;
+}
 function caseFileEntry(f){
  const d=f.details||{};
- const actions=['organisation','suspects'].includes(f.file_type)?recordActions(f.created_by,'case_files',f.id,'file',()=>openAddForm(f.file_type,f)):null;
+ const actions=['organisation','suspects','person'].includes(f.file_type)?recordActions(f.created_by,'case_files',f.id,'file',()=>openAddForm(f.file_type,f)):null;
  const box=h('div',{className:'entry'},h('strong',{text:f.name||d.file_number||FILE_TITLES[f.file_type]||'File'}),h('div',{className:'record-subtitle',text:'Added by '+nameOf(f.created_by)+' on '+fmtTime(f.created_at)}));
  if(actions)box.append(actions);
  if(f.file_type==='organisation') box.append(organisationDisplay(d));
+ else if(f.file_type==='person' && d.file_number && d.personal_details_version===1) box.append(personFileDisplay(d));
+ else if(f.file_type==='suspects' && d.file_number && d.group_types) box.append(groupIntelligenceDisplay(d));
  else {
    const lines=[];
    const walk=(v,p='')=>{
@@ -1398,7 +1413,7 @@ function openInterviewForm(existing=null) {
  add('Observations','observations','textarea',{rows:8,value:d.observations||'',wide:true,placeholder:'Describe observable facts only (e.g., injuries seen, emotional state). Do not record opinions on truthfulness.'});
  form.append(section('7. Video / Audio File'));
  const media=repeatable('media link',[{key:'url',label:'Video / Audio link',type:'url',wide:true}],(d.media_links||[]).map(url=>({url}))); form.append(media.holder);
- submitButtons(form,msg,existing?'Save corrections':'Add interview report');
+ submitButtons(form,msg,existing?'Save corrections':'Add to case');
  fields.language_needed.addEventListener('change',()=>{fields.language.required=fields.language_needed.value==='Yes';fields.language.disabled=fields.language_needed.value!=='Yes';});
  fields.language.dispatchEvent(new Event('change'));
  fields.interviewee_role.addEventListener('change',()=>{fields.role_other.disabled=fields.interviewee_role.value!=='Other';}); fields.interviewee_role.dispatchEvent(new Event('change'));
@@ -1428,13 +1443,13 @@ function openAddForm(type,existing=null) {
   add('Link','link','url',{value:old.link_urls?.[0]||'',required:true});
   add('Description','description','textarea',{value:old.description||'',required:true,wide:true}); add('Date','collected_on','date',{value:old.collected_on||today(),required:true});
   const links=repeatable('additional link',[{key:'url',label:'Link',type:'url'}],(old.link_urls||[]).slice(1).map(url=>({url})));form.append(links.holder);
-  submitButtons(form,msg,existing?'Save exhibit':'Add exhibit');
+  submitButtons(form,msg,existing?'Save exhibit':'Add to case');
   form.addEventListener('submit',async e=>{e.preventDefault();const urls=[f.link.value.trim(),...links.values().map(x=>x.url)].filter(Boolean);const payload={exhibit_ref:f.exhibit_ref.value.trim(),description:f.description.value.trim(),collected_on:f.collected_on.value,link_urls:urls};const result=existing?await db.from('exhibits').update(payload).eq('id',old.id).select():await db.from('exhibits').insert({case_id:cid,...payload,collected_by:me.id}).select();if(result.error||!result.data?.length){msg.textContent=errText(result.error||{code:'42501'});return;}$('add-panel').replaceChildren();await loadFiles();});
  } else if(type==='legal'){
   add('Type','process_type','select',{options:Object.values(LABELS.legType),value:existing?(LABELS.legType[existing.process_type]||existing.process_type):'',required:true});
   add('Link','link_url','url',{value:existing?.link_url||'',required:true});
   add('Date Issued','date_issued','date',{value:existing?.date_issued||today(),required:true});
-  submitButtons(form,msg,existing?'Save legal process':'Add legal process');
+  submitButtons(form,msg,existing?'Save legal process':'Add to case');
   form.addEventListener('submit',async e=>{
    e.preventDefault();
    const process_type=Object.keys(LABELS.legType).find(k=>LABELS.legType[k]===f.process_type.value)||'other';
@@ -1488,7 +1503,7 @@ function openAddForm(type,existing=null) {
    juvenileHolder.append(juvenileRows.holder);form.append(juvenileHolder);
    const updateJuvenile=()=>{const yes=juvenile.values()[0]==='yes';juvenileHolder.classList.toggle('hidden',!yes);};
    juvenile.wrap.addEventListener('change',updateJuvenile);updateJuvenile();
-   submitButtons(form,msg,existing?'Save Group Intelligence file':'Add Group Intelligence file');
+   submitButtons(form,msg,existing?'Save Group Control File':'Add to case');
    form.addEventListener('submit',async e=>{
      e.preventDefault();msg.textContent='';
      if(groupTypes.values().includes('other')&&!f.group_type_other.value.trim()){msg.textContent='Specify the other group type.';return;}
@@ -1514,22 +1529,90 @@ function openAddForm(type,existing=null) {
      }
      $('add-panel').replaceChildren();await loadFiles();
    });
+ } else if(type==='person'){
+  const s=(t)=>form.append(section(t));
+  s('1. File Identification');
+  add('File Number','file_number','text',{value:d.file_number||individualFileNumber(),required:true}); f.file_number.readOnly=true;
+  s('2. Personal Details');
+  add('Full Legal Name','full_legal_name','text',{value:d.full_legal_name||old.name||'',required:true});
+  const aliases=repeatable('alias / nickname',[{key:'value',label:'Alias / Nickname',wide:true}],(d.aliases||[]).map(value=>({value})));
+  form.append(aliases.holder);
+  add('Age','age','number',{value:d.age||''}); add('Sex / Gender','sex_gender','text',{value:d.sex_gender||''});
+  add('Nationality','nationality','text',{value:d.nationality||''}); add('Languages','languages','text',{value:d.languages||''});
+  s('3. Physical Description');
+  add('Hair','hair','text',{value:d.hair||''}); add('Complexion / Ethnicity','complexion_ethnicity','text',{value:d.complexion_ethnicity||''});
+  const scars=repeatable('scar / mark / tattoo',[{key:'value',label:'Scar / Mark / Tattoo',wide:true}],(d.scars_marks_tattoos||[]).map(value=>({value})));form.append(scars.holder);
+  add('Eyes','eyes','text',{value:d.eyes||''});
+  const facial=repeatable('facial hair detail',[{key:'value',label:'Facial Hair',wide:true}],(d.facial_hair||[]).map(value=>({value})));form.append(facial.holder);
+  const features=repeatable('other feature',[{key:'value',label:'Other Feature',wide:true}],(d.other_features||[]).map(value=>({value})));form.append(features.holder);
+  add('Clothing Style','clothing_style','text',{value:d.clothing_style||''});
+  const buildTable=(title,headers,columns,initial)=>{
+    const wrap=h('div',{className:'scroll'}),table=h('table'),thead=h('thead'),tbody=h('tbody');
+    thead.append(h('tr',{},headers.map(x=>h('th',{text:x}))));table.append(thead,tbody);wrap.append(table);
+    const rows=[];
+    const draw=(item={})=>{
+      const controls=columns.map(c=>{if(c.options){const el=h('select');el.append(h('option',{value:'',text:'Choose...'}));c.options.forEach(v=>el.append(h('option',{value:v,text:v})));el.value=item[c.key]||'';return el;}return h('input',{type:'text',value:item[c.key]||'',placeholder:c.label});});
+      const tr=h('tr');controls.forEach(el=>tr.append(h('td',{},el)));
+      const remove=h('button',{type:'button',className:'secondary',text:'Remove',onclick:()=>{tr.remove();rows.splice(rows.indexOf(entry),1);}});tr.append(h('td',{},remove));tbody.append(tr);const entry={controls,tr};rows.push(entry);
+    };
+    const addRow=h('button',{type:'button',className:'secondary',text:'Add '+title,onclick:()=>draw()});
+    form.append(wrap,addRow);(initial||[]).forEach(draw);
+    return {values:()=>rows.map(r=>Object.fromEntries(columns.map((c,i)=>[c.key,r.controls[i].value.trim()]))).filter(r=>Object.values(r).some(Boolean))};
+  };
+  s('4. Addresses, Work and Vehicles');
+  const locations=buildTable('item',['Item','Detail','Type / Period',''],[
+    {key:'item',label:'Item',options:['Address','Employer / School','Vehicle']},{key:'detail',label:'Detail'},{key:'type_period',label:'Type / Period'}],d.addresses_work_vehicles||[]);
+  s('5. How the Person Became a Suspect');
+  const origin=checkboxOptions('Origin of Suspicion',[['witness','Witness'],['victim','Victim'],['intelligence','Intelligence'],['tip','Tip'],['other','Other']],d.origin_of_suspicion?[d.origin_of_suspicion]:[],true);
+  form.append(h('label',{text:'Origin of Suspicion'}),origin.wrap);
+  add('If Other, specify','origin_other','text',{value:d.origin_other||''});
+  const originOtherWrap=f.origin_other.parentElement;
+  const updateOrigin=()=>{const show=origin.values()[0]==='other';originOtherWrap.classList.toggle('hidden',!show);f.origin_other.disabled=!show;};origin.wrap.addEventListener('change',updateOrigin);updateOrigin();
+  add('Grounds for suspicion','grounds_for_suspicion','textarea',{rows:7,wide:true,placeholder:'Grounds for suspicion (facts only)',value:d.grounds_for_suspicion||''});
+  s('6. Motive, Means and Opportunity');
+  const factors=buildTable('factor',['Factor','Evidence For','Evidence Against / Gaps',''],[
+    {key:'factor',label:'Factor',options:['Motive','Means','Opportunity']},{key:'evidence_for',label:'Evidence For'},{key:'evidence_against_gaps',label:'Evidence Against / Gaps'}],d.motive_means_opportunity||[]);
+  s('7. Risk and Welfare Assessment');
+  const risk=d.risk||{};
+  const choose=(label,key,opts)=>{const c=checkboxOptions(label,opts.map(v=>[v.toLowerCase().replace(/[^a-z]+/g,'_'),v]),risk[key]?[risk[key].toLowerCase().replace(/[^a-z]+/g,'_')]:[],true);form.append(h('label',{text:label}),c.wrap);return ()=>opts.find(v=>v.toLowerCase().replace(/[^a-z]+/g,'_')===c.values()[0])||null;};
+  const violence=choose('Violence','violence',['High','Medium','Low','Unknown']);
+  const weapons=choose('Weapons Access','weapons_access',['Known','Suspected','None known']);
+  const victimRisk=choose('Risk to Victim / Witnesses','risk_to_victim_witnesses',['High','Medium','Low']);
+  const selfHarm=choose('Self-Harm / Suicide Risk','self_harm_suicide_risk',['Known','Suspected','None known']);
+  add('Medical / Mental Health / Substance Use','medical_mental_health_substance_use','textarea',{rows:3,wide:true,value:risk.medical_mental_health_substance_use||''});
+  const vulnerable=checkboxOptions('Vulnerabilities',[['no','No'],['yes','Yes']],risk.vulnerabilities==='Yes'?['yes']:risk.vulnerabilities==='No'?['no']:[],true);
+  form.append(h('label',{text:'Vulnerabilities'}),vulnerable.wrap);
+  add('If Yes, describe vulnerabilities','vulnerabilities_details','textarea',{rows:3,wide:true,value:risk.vulnerabilities_details||''});
+  const vulnWrap=f.vulnerabilities_details.parentElement;
+  const updateVuln=()=>{const yes=vulnerable.values()[0]==='yes';vulnWrap.classList.toggle('hidden',!yes);f.vulnerabilities_details.disabled=!yes;};vulnerable.wrap.addEventListener('change',updateVuln);updateVuln();
+  add('Officer Safety Warnings','officer_safety_warnings','textarea',{rows:3,wide:true,value:risk.officer_safety_warnings||''});
+  submitButtons(form,msg,existing?'Save Suspect File':'Add to case');
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();msg.textContent='';
+    if(origin.values()[0]==='other'&&!f.origin_other.value.trim()){msg.textContent='Specify the other origin of suspicion.';return;}
+    if(vulnerable.values()[0]==='yes'&&!f.vulnerabilities_details.value.trim()){msg.textContent='Describe the vulnerabilities.';return;}
+    const details={personal_details_version:1,file_number:f.file_number.value.trim(),full_legal_name:f.full_legal_name.value.trim(),aliases:aliases.values().map(x=>x.value),age:f.age.value,sex_gender:f.sex_gender.value.trim(),nationality:f.nationality.value.trim(),languages:f.languages.value.trim(),hair:f.hair.value.trim(),complexion_ethnicity:f.complexion_ethnicity.value.trim(),scars_marks_tattoos:scars.values().map(x=>x.value),eyes:f.eyes.value.trim(),facial_hair:facial.values().map(x=>x.value),other_features:features.values().map(x=>x.value),clothing_style:f.clothing_style.value.trim(),addresses_work_vehicles:locations.values(),origin_of_suspicion:origin.values()[0]||null,origin_other:origin.values()[0]==='other'?f.origin_other.value.trim():null,grounds_for_suspicion:f.grounds_for_suspicion.value.trim(),motive_means_opportunity:factors.values(),risk:{violence:violence(),weapons_access:weapons(),risk_to_victim_witnesses:victimRisk(),self_harm_suicide_risk:selfHarm(),medical_mental_health_substance_use:f.medical_mental_health_substance_use.value.trim(),vulnerabilities:vulnerable.values()[0]==='yes'?'Yes':vulnerable.values()[0]==='no'?'No':null,vulnerabilities_details:vulnerable.values()[0]==='yes'?f.vulnerabilities_details.value.trim():'',officer_safety_warnings:f.officer_safety_warnings.value.trim()}};
+    const payload={name:details.full_legal_name,details};
+    const result=existing?await db.from('case_files').update(payload).eq('id',old.id).select():await db.from('case_files').insert({case_id:cid,file_type:'person',...payload,created_by:me.id}).select();
+    if(result.error||!result.data?.length){msg.textContent=result.error?.code==='23505'?'That file number is already in use. Close and reopen the form to generate another.':errText(result.error||{code:'42501'});return;}
+    $('add-panel').replaceChildren();await loadFiles();
+  });
  } else if(type==='organisation'){
   const s=(t)=>form.append(section(t));
-  s('1. Organisation Identification');add('File Number','file_number','text',{value:d.file_number||fileNumber('NV'),required:true});f.file_number.readOnly=true;add('Primary Number','primary_number','text',{value:d.primary_number||''});add('Known Aliases','known_aliases','textarea',{rows:2,value:d.known_aliases||''});
-  s('2. Organisation Overview');add('Estimated Size','estimated_size','text',{value:d.estimated_size||''});add('Active Since','active_since','text',{placeholder:'Year or date',value:d.active_since||''});add('Area of Operation','area_of_operation','text',{value:d.area_of_operation||''});add('Structure Type','structure_type','select',{options:['Hierarchal','Network','Cell','Loose'],value:d.structure_type||'',required:true});add('Summary','summary','textarea',{wide:true,rows:6,placeholder:'Summary (what the organisation is, what it does, who leads it, and why it is of interest).',value:d.summary||''});
+  s('1. Organization Identification');add('File Number','file_number','text',{value:d.file_number||fileNumber('NV'),required:true});f.file_number.readOnly=true;add('Primary Name','primary_number','text',{value:d.primary_number||''});add('Known Aliases','known_aliases','textarea',{rows:2,value:d.known_aliases||''});
+  s('2. Organization Overview');add('Estimated Size','estimated_size','text',{value:d.estimated_size||''});add('Active Since','active_since','text',{placeholder:'Year or date',value:d.active_since||''});add('Area of Operation','area_of_operation','text',{value:d.area_of_operation||''});add('Structure Type','structure_type','select',{options:['Hierarchal','Network','Cell','Loose'],value:d.structure_type||'',required:true});add('Summary','summary','textarea',{wide:true,rows:6,placeholder:'Summary (what the organization is, what it does, who leads it, and why it is of interest).',value:d.summary||''});
   s('3. Criminal Activity');const primary=repeatable('primary activity',[{key:'activity',label:'Primary Activity',wide:true}],d.primary_activities||[]) ;const secondary=repeatable('secondary activity',[{key:'activity',label:'Secondary Activity',wide:true}],d.secondary_activities||[]) ;form.append(primary.holder,secondary.holder);
   s('4. Structure and Hierarchy');const hierarchy=repeatable('position',[{key:'position',label:'Position'},{key:'name',label:'Name'},{key:'aliases',label:'Aliases'},{key:'responsibilities',label:'Role / Responsibilities',wide:true}],d.hierarchy||[]) ;form.append(hierarchy.holder);
   s('5. Members and Associate Index');const members=repeatable('member',[{key:'name',label:'Name'},{key:'alias',label:'Alias'},{key:'age',label:'Age',type:'number'},{key:'role',label:'Role / Responsibilities',wide:true}],d.members||[]) ;form.append(members.holder);
   s('6. Locations and Premises');const locations=repeatable('location',[{key:'address',label:'Address / Location'},{key:'use',label:'Use / Significance'},{key:'occupant',label:'Occupant / Owner'}],d.locations||[]) ;form.append(locations.holder);
-  s('7. Associations and Rival Groups');const associations=repeatable('association',[{key:'entity',label:'Organisation / Person'},{key:'relationship',label:'Relationship'},{key:'details',label:'Nature / Details',wide:true}],d.associations||[]) ;form.append(associations.holder);
+  s('7. Associations and Rival Groups');const associations=repeatable('association',[{key:'entity',label:'Organization / Person'},{key:'relationship',label:'Relationship'},{key:'details',label:'Nature / Details',wide:true}],d.associations||[]) ;form.append(associations.holder);
   s('8. Risk and Threat Assessment');add('Violence','violence','select',{options:['High','Medium','Low','Unknown'],value:d.risk?.violence||'',required:true});add('Firearms','firearms','select',{options:['Known','Suspected','None known'],value:d.risk?.firearms||'',required:true});add('Weapons','weapons','select',{options:['Known','Suspected','None known'],value:d.risk?.weapons||'',required:true});add('Counter-Surveillance Awareness','counter_surveillance','select',{options:['High','Medium','Low'],value:d.risk?.counter_surveillance||'',required:true});add('Witness Intimidation Risk','witness_intimidation','select',{options:['High','Medium','Low'],value:d.risk?.witness_intimidation||'',required:true});add('Officer Safety Notes','officer_safety','textarea',{wide:true,value:d.risk?.officer_safety||''});add('Public Safety / Vulnerable Notes','public_safety','textarea',{wide:true,value:d.risk?.public_safety||''});
   s('9. Additional Notes');add('Additional Notes','additional_notes','textarea',{rows:8,wide:true,value:d.additional_notes||''});
-  submitButtons(form,msg,existing?'Save organisation file':'Add organisation file');
+  submitButtons(form,msg,existing?'Save organization file':'Add to case');
   form.addEventListener('submit',async e=>{e.preventDefault();const details={file_number:f.file_number.value,primary_number:f.primary_number.value,known_aliases:f.known_aliases.value,estimated_size:f.estimated_size.value,active_since:f.active_since.value,area_of_operation:f.area_of_operation.value,structure_type:f.structure_type.value,summary:f.summary.value,primary_activities:primary.values(),secondary_activities:secondary.values(),hierarchy:hierarchy.values(),members:members.values(),locations:locations.values(),associations:associations.values(),risk:{violence:f.violence.value,firearms:f.firearms.value,weapons:f.weapons.value,counter_surveillance:f.counter_surveillance.value,witness_intimidation:f.witness_intimidation.value,officer_safety:f.officer_safety.value,public_safety:f.public_safety.value},additional_notes:f.additional_notes.value};const payload={name:details.file_number,details};const result=existing?await db.from('case_files').update(payload).eq('id',old.id).select():await db.from('case_files').insert({case_id:cid,file_type:'organisation',...payload,created_by:me.id}).select();if(result.error||!result.data?.length){msg.textContent=errText(result.error||{code:'42501'});return;}$('add-panel').replaceChildren();await loadFiles();});
  } else {
   const defs=CASE_FILE_FIELDS[type]||[];defs.forEach(d=>add(d.label,d.key,d.type==='textarea'?'textarea':d.type==='select'?'select':d.type||'text',{options:d.options?Object.values(d.options):undefined,required:d.required}));
-  submitButtons(form,msg,'Add to file');form.addEventListener('submit',async e=>{e.preventDefault();const vals=Object.fromEntries(Object.entries(f).map(([k,x])=>[k,x.value.trim()]));const {name,...details}=vals;const {error}=await db.from('case_files').insert({case_id:cid,file_type:type,name,details,created_by:me.id});if(error){msg.textContent=errText(error);return;}$('add-panel').replaceChildren();await loadFiles();});
+  submitButtons(form,msg,'Add to case');form.addEventListener('submit',async e=>{e.preventDefault();const vals=Object.fromEntries(Object.entries(f).map(([k,x])=>[k,x.value.trim()]));const {name,...details}=vals;const {error}=await db.from('case_files').insert({case_id:cid,file_type:type,name,details,created_by:me.id});if(error){msg.textContent=errText(error);return;}$('add-panel').replaceChildren();await loadFiles();});
  }
  $('add-panel').replaceChildren(form);form.querySelector('input,select,textarea')?.focus();
 }
