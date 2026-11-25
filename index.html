@@ -1526,3 +1526,51 @@ th, td, .kv, .kv dd, .prewrap, #file-list, #file-list * { overflow-wrap: anywher
 
 </body>
 </html>
+<style>
+/* Final pass: remove the original blue accent from every File Sections control/state. */
+#files { --accent: #454b43 !important; --accent-text: #ffffff !important; }
+#files .file-categories button,
+#files .file-categories button.secondary,
+#files .file-categories button[aria-pressed] {
+  appearance: none !important;
+  min-height: 31px !important;
+  margin: 0 !important;
+  padding: 6px 11px !important;
+  border: 1px solid #d1d5cd !important;
+  border-radius: 4px !important;
+  background: #f8f9f6 !important;
+  color: #555c52 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+#files .file-categories button:hover {
+  background: #eef0eb !important;
+  border-color: #b8beb3 !important;
+  color: #30372e !important;
+}
+#files .file-categories button[aria-pressed="true"] {
+  background: #e7ebe4 !important;
+  border-color: #aeb7a7 !important;
+  color: #30382e !important;
+  box-shadow: inset 0 -2px 0 #697463 !important;
+  outline: none !important;
+}
+#files .filegroup > h3,
+#files .org-display-section h4,
+#files .form-section h3 {
+  color: #4e574b !important;
+  border-color: #dfe2dc !important;
+}
+#files .entry,
+#files .repeat-block,
+#files .org-repeat-item,
+#files .subform {
+  background: #fbfbf9 !important;
+  border-color: #dfe2dc !important;
+  box-shadow: none !important;
+}
+#files a, #files button.linkbtn { color: #4d5b49 !important; }
+#files button.danger { background: #914c49 !important; color: #fff !important; border-color: #914c49 !important; }
+</style>
