@@ -252,7 +252,7 @@
           <div class="menu-items" id="add-items"></div>
         </details>
       </div>
-      <p class="notice">Files appear here once they are added. Entries are permanent: to correct one, add a new entry.</p>
+      <p class="notice">Files appear here once they are added. Select a category to view its records. Interview reports can be corrected by authorised case managers.</p>
       <p id="file-msg" class="error" role="alert"></p>
       <div id="add-panel"></div>
       <div id="file-list"></div>
@@ -301,10 +301,10 @@
 
   // What the "Add" menu offers, and the fields of the three flexible file types
   const FILE_TYPES = {
-    interview:    'Interview report',
-    exhibit:      'Exhibit',
+    interview:    'Interview Report',
+    exhibit:      'Exhibit List',
     legal:        'Legal process (warrant, subpoena, etc.)',
-    organisation: 'Criminal organisation file',
+    organisation: 'Criminal Organisation file',
     person:       'Person file',
     suspects:     'Multiple suspects file'
   };
@@ -893,5 +893,209 @@
   showView('login');
   db.auth.getSession().then(({ data }) => { if (data.session) startApp(); });
 </script>
+
+<style>
+  main { max-width: 1120px; }
+  #list-view > .bar { flex-wrap: nowrap; }
+  #list-view > .bar h1 { white-space: nowrap; }
+  #new-btn { flex: 0 0 auto; white-space: nowrap; }
+  #case-rows td { white-space: nowrap; }
+  #case-rows td:first-child { white-space: normal; }
+  .file-categories { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .file-categories button { margin:0; }
+  .file-categories button[aria-pressed="true"] { outline:3px solid var(--accent); outline-offset:2px; }
+  .repeat-block { border:1px solid var(--line); border-radius:6px; padding:12px; margin:10px 0; }
+  .repeat-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 12px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .repeat-row:last-child { border-bottom:0; }
+  .repeat-row .wide { grid-column:1/-1; }
+  .form-section { border-top:1px solid var(--line); margin-top:18px; padding-top:10px; }
+  .field-hint { color:var(--muted); font-size:.88rem; margin:4px 0; }
+  .link-list a { overflow-wrap:anywhere; }
+  @media(max-width:600px) { .repeat-row { grid-template-columns:1fr; } .repeat-row .wide { grid-column:auto; } }
+</style>
+<script>
+// ---------- Updated file-section experience ----------
+let selectedFileCategory = 'interview';
+let cachedFiles = { interview:[], exhibit:[], legal:[], organisation:[], person:[], suspects:[] };
+const FILE_TITLES = {
+  interview:'Interview Report', exhibit:'Exhibit List', legal:'Legal process',
+  organisation:'Criminal Organisation file', person:'Person file', suspects:'Multiple suspects file'
+};
+const randomDigits = (n=4) => String(crypto.getRandomValues(new Uint32Array(1))[0] % (10**n)).padStart(n,'0');
+const monthYear = (d=today()) => { const x=new Date(d+'T00:00:00'); return String(x.getMonth()+1).padStart(2,'0')+String(x.getFullYear()).slice(-2); };
+const fileNumber = (prefix) => prefix+'-'+randomDigits()+'-'+monthYear();
+function field(label, key, type='text', opts={}) {
+  const id='ff-'+key+'-'+Math.random().toString(36).slice(2,7);
+  let el;
+  if(type==='textarea') el=h('textarea',{rows:opts.rows||4,placeholder:opts.placeholder||''});
+  else if(type==='select') { el=h('select'); el.append(h('option',{value:'',text:'Choose...'})); (opts.options||[]).forEach(v=>el.append(h('option',{value:v,text:v}))); }
+  else el=h('input',{type,placeholder:opts.placeholder||''});
+  el.id=id; if(opts.required) el.required=true; if(opts.value!==undefined) el.value=opts.value;
+  const wrap=h('div', {className:opts.wide?'wide':''}, h('label',{htmlFor:id,text:label+(opts.required?' *':'')}),el);
+  return {el,wrap};
+}
+function section(title, ...children) { return h('section',{className:'form-section'},h('h3',{text:title}),...children); }
+function repeatable(title, columns, initial=[]) {
+  const holder=h('div',{className:'repeat-block'}), rows=[];
+  const add=h('button',{type:'button',className:'secondary',text:'Add '+title,onclick:()=>draw()});
+  holder.append(add);
+  const draw=(values={})=>{
+    const row=h('div',{className:'repeat-row'}), controls={};
+    columns.forEach(c=>{ const f=field(c.label,c.key,c.type||'text',{options:c.options,wide:c.wide,placeholder:c.placeholder,value:values[c.key]||''}); controls[c.key]=f.el; row.append(f.wrap); });
+    const remove=h('button',{type:'button',className:'secondary',text:'Remove',onclick:()=>{row.remove(); rows.splice(rows.indexOf(controls),1);}});
+    row.append(h('div',{className:'wide'},remove)); holder.insertBefore(row,add); rows.push(controls);
+  };
+  initial.forEach(v=>draw(v));
+  return {holder, values:()=>rows.map(r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,v.value.trim()]))).filter(r=>Object.values(r).some(Boolean))};
+}
+function submitButtons(form,msg,label='Save') {
+  form.append(h('div',{className:'case-actions',style:'margin-top:16px'},h('button',{type:'submit',text:label,style:'margin-top:0'}),h('button',{type:'button',className:'secondary',text:'Cancel',onclick:()=> $('add-panel').replaceChildren()})),msg);
+}
+function showFileCategories() {
+  const bar=h('div',{className:'file-categories','aria-label':'File categories'});
+  Object.entries(FILE_TITLES).forEach(([key,title])=>{
+    const count=(cachedFiles[key]||[]).length;
+    bar.append(h('button',{type:'button',className:'secondary',text:title+' ('+count+')','aria-pressed':String(selectedFileCategory===key),onclick:()=>{selectedFileCategory=key;renderCategory();}}));
+  });
+  $('file-list').replaceChildren(bar,h('div',{id:'category-content'}));
+}
+function renderCategory() {
+  const root=$('category-content'); if(!root)return;
+  root.replaceChildren();
+  const items=cachedFiles[selectedFileCategory]||[];
+  if(!items.length) { root.append(h('p',{className:'notice',text:'No '+FILE_TITLES[selectedFileCategory]+' records have been added to this case.'})); return; }
+  if(selectedFileCategory==='interview') items.forEach(x=>root.append(interviewEntry(x)));
+  else if(selectedFileCategory==='exhibit') root.append(...items.map(exhibitEntry));
+  else if(selectedFileCategory==='legal') root.append(...items.map(legalEntry));
+  else root.append(...items.map(caseFileEntry));
+}
+function renderFiles() {
+  if(!current){$('files').classList.add('hidden');return;}
+  $('files').classList.remove('hidden'); loadFiles();
+}
+async function loadFiles() {
+  $('file-msg').textContent='';
+  const id=current.id;
+  const [iv,ex,lg,cf]=await Promise.all([
+    db.from('interview_reports').select('*').eq('case_id',id).order('interview_date',{ascending:false}).order('created_at',{ascending:false}),
+    db.from('exhibits').select('*').eq('case_id',id).order('created_at'),
+    db.from('legal_processes').select('*').eq('case_id',id).order('created_at'),
+    db.from('case_files').select('*').eq('case_id',id).order('created_at')
+  ]);
+  if(iv.error||ex.error||lg.error||cf.error){$('file-list').replaceChildren(h('p',{className:'error',text:'Could not load files. '+errText(iv.error||ex.error||lg.error||cf.error)}));return;}
+  cachedFiles={interview:iv.data||[],exhibit:ex.data||[],legal:lg.data||[],organisation:[],person:[],suspects:[]};
+  (cf.data||[]).forEach(f=>(cachedFiles[f.file_type]||[]).push(f));
+  showFileCategories(); renderCategory();
+}
+function linkNodes(urls) {
+  const list=h('ul',{className:'link-list'});
+  (urls||[]).forEach((u,i)=>{if(u)list.append(h('li',{},h('a',{href:u,target:'_blank',rel:'noopener noreferrer',text:'Open link '+(i+1)})));});
+  return list;
+}
+function interviewEntry(r) {
+  const d=r.details||{};
+  const title=h('strong',{text:(d.file_number?d.file_number+' — ':'')+r.interviewee_name+' ('+(r.interviewee_role||'Role not set')+')'});
+  const meta=h('div',{className:'who',text:fmtDate(r.interview_date)+(r.location?' at '+r.location:'')+'. Interviewed by '+nameOf(r.interviewed_by)+'.'});
+  const edit=h('button',{type:'button',className:'secondary',text:'Edit / correct report',onclick:()=>openInterviewForm(r)});
+  const detail=h('details',{},h('summary',{text:'View report details'}),kv([
+    ['File identification',d.file_number],['Division',LABELS.division[d.division]||d.division],['Start / end',((d.start_time||'')+' – '+(d.end_time||''))],['Method',d.method],['Recorded',d.recorded],['Interviewee address',d.address],['Language / interpreter',d.language_needed+(d.language?' — '+d.language:'')],['ID verified',d.id_verified],['Contact',d.contact],['Vulnerability / support',d.vulnerability+(d.vulnerability_notes?' — '+d.vulnerability_notes:'')],['Persons present',(d.persons_present||[]).map(p=>[p.name,p.role,p.agency,p.throughout?'present throughout':'not throughout'].filter(Boolean).join(' — ')).join('\n')],['Pre-interview checks',JSON.stringify(d.pre_checks||{})],['Narrative interview',r.summary],['Observations',d.observations],['Video / audio files',(d.media_links||[]).join('\n')]
+  ]));
+  return h('div',{className:'entry'},title,meta,h('div',{className:'case-actions'},edit),detail);
+}
+function exhibitEntry(x){return h('div',{className:'entry'},h('strong',{text:'Exhibit #'+x.exhibit_ref}),kv([['Description',x.description],['Date',fmtDate(x.collected_on)],['Links',(x.link_urls||[]).join('\n')],['Collected by',nameOf(x.collected_by)]]));}
+function legalEntry(x){return h('div',{className:'entry'},h('strong',{text:LABELS.legType[x.process_type]||x.process_type||'Legal process'}),kv([['Link',x.link_url],['Date issued',fmtDate(x.date_issued)],['Status',LABELS.legStatus[x.status]||x.status]]));}
+function caseFileEntry(f){
+ const d=f.details||{}; const box=h('div',{className:'entry'},h('strong',{text:f.name||d.file_number||FILE_TITLES[f.file_type]}),h('div',{className:'who',text:'Added by '+nameOf(f.created_by)+' on '+fmtTime(f.created_at)}));
+ const lines=[]; const walk=(v,p='')=>{if(v==null||v==='')return;if(Array.isArray(v)){if(v.length)lines.push([p,v.map(x=>typeof x==='object'?Object.entries(x).map(([a,b])=>a+': '+b).join('; '):x).join('\n')]);}else if(typeof v==='object'){Object.entries(v).forEach(([k,x])=>walk(x,k.replaceAll('_',' ')));}else lines.push([p.replaceAll('_',' '),String(v)]);};
+ Object.entries(d).forEach(([k,v])=>walk(v,k)); box.append(kv(lines));return box;
+}
+function openInterviewForm(existing=null) {
+ const d=existing?.details||{}, form=h('form',{className:'subform'}), msg=h('p',{className:'error',role:'alert'}), fields={};
+ form.append(h('h3',{text:existing?'Edit interview report':'Add interview report'}));
+ const add=(label,key,type='text',opts={})=>{const f=field(label,key,type,opts);fields[key]=f.el;form.append(f.wrap);return f.el;};
+ form.append(section('1. File Identification'));
+ add('File Number','file_number','text',{value:d.file_number||fileNumber('FD'),required:true}); fields.file_number.readOnly=true;
+ add('Division','division','select',{options:['Major Crimes Division','Organised Crime Division'],value:d.division==='organised_crime'?'Organised Crime Division':d.division==='major_crimes'?'Major Crimes Division':(current.division==='organised_crime'?'Organised Crime Division':'Major Crimes Division'),required:true});
+ add('Date of Interview','interview_date','date',{value:existing?.interview_date||today(),required:true});
+ add('Start Time','start_time','time',{value:d.start_time||'',required:true,placeholder:'HH:MM'}); add('End Time','end_time','time',{value:d.end_time||'',required:true,placeholder:'HH:MM'});
+ add('Location of Interview','location','text',{value:existing?.location||'',required:true}); add('Reporting Author','reporting_author','text',{value:d.reporting_author||me.full_name||me.username,required:true});
+ add('Method','method','select',{options:['In person','Phone'],value:d.method||'',required:true}); add('Recorded?','recorded','select',{options:['Video','Audio','No'],value:d.recorded||'',required:true});
+ form.append(section('2. Interviewee'));
+ add('Full Name','interviewee_name','text',{value:existing?.interviewee_name||'',required:true}); add('Age','age','number',{value:d.age||''}); add('Address','address','text',{value:d.address||''});
+ add('Language / Interpreter Needed','language_needed','select',{options:['No','Yes'],value:d.language_needed||'',required:true}); add('Language (if Yes)','language','text',{value:d.language||''});
+ add('Role','interviewee_role','select',{options:['Victim','Witness','Subject','Other'],value:existing?.interviewee_role||'',required:true}); add('If Other, specify','role_other','text',{value:d.role_other||''});
+ add('ID Verified','id_verified','select',{options:['Yes','No'],value:d.id_verified||'',required:true}); add('Contact','contact','text',{value:d.contact||''});
+ add('Vulnerability / Support Needs','vulnerability','select',{options:['None','Yes'],value:d.vulnerability||'',required:true}); add('If Yes, describe','vulnerability_notes','textarea',{value:d.vulnerability_notes||''});
+ form.append(section('3. Persons Present'));
+ const persons=repeatable('person present',[{key:'name',label:'Name'},{key:'role',label:'Role'},{key:'agency',label:'Agency / Relationship'},{key:'throughout',label:'Present Throughout?',type:'select',options:['Yes','No']}],d.persons_present||[]); form.append(persons.holder);
+ form.append(section('4. Pre-Interview Checks'));
+ add('Purpose Explained','purpose_explained','select',{options:['Yes','No'],value:d.pre_checks?.purpose_explained||'',required:true});
+ add('Caution / Rights Advisement','caution','select',{options:['Given','Not required'],value:d.pre_checks?.caution||'',required:true});
+ add('Legal Representation','legal_representation','select',{options:['Declined','Present'],value:d.pre_checks?.legal_representation||'',required:true});
+ form.append(section('5. Narrative Interview'));
+ add('Narrative Interview','summary','textarea',{rows:12,value:existing?.summary||'',required:true,wide:true,placeholder:"Write in the third person, past tense, in chronological order. Record what was said, not opinions or conclusions. Use the interviewee's own words in quotation marks where precise wording matters. Identify who said or asked what."});
+ form.append(section('6. Observations'));
+ add('Observations','observations','textarea',{rows:8,value:d.observations||'',wide:true,placeholder:'Describe observable facts only (e.g., injuries seen, emotional state). Do not record opinions on truthfulness.'});
+ form.append(section('7. Video / Audio File'));
+ const media=repeatable('media link',[{key:'url',label:'Video / Audio link',type:'url',wide:true}],(d.media_links||[]).map(url=>({url}))); form.append(media.holder);
+ submitButtons(form,msg,existing?'Save corrections':'Add interview report');
+ fields.language_needed.addEventListener('change',()=>{fields.language.required=fields.language_needed.value==='Yes';fields.language.disabled=fields.language_needed.value!=='Yes';});
+ fields.language.dispatchEvent(new Event('change'));
+ fields.interviewee_role.addEventListener('change',()=>{fields.role_other.disabled=fields.interviewee_role.value!=='Other';}); fields.interviewee_role.dispatchEvent(new Event('change'));
+ fields.vulnerability.addEventListener('change',()=>{fields.vulnerability_notes.required=fields.vulnerability.value==='Yes';fields.vulnerability_notes.disabled=fields.vulnerability.value!=='Yes';}); fields.vulnerability.dispatchEvent(new Event('change'));
+ form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='';
+  const v=Object.fromEntries(Object.entries(fields).map(([k,x])=>[k,x.value.trim()]));
+  if(v.language_needed==='Yes'&&!v.language){msg.textContent='Enter the language required.';return;}
+  if(v.interviewee_role==='Other'&&!v.role_other){msg.textContent='Specify the interviewee role.';return;}
+  if(v.vulnerability==='Yes'&&!v.vulnerability_notes){msg.textContent='Describe the support needs.';return;}
+  const division=v.division==='Major Crimes Division'?'major_crimes':'organised_crime';
+  const details={file_number:v.file_number,division,start_time:v.start_time,end_time:v.end_time,reporting_author:v.reporting_author,method:v.method,recorded:v.recorded,age:v.age,address:v.address,language_needed:v.language_needed,language:v.language,id_verified:v.id_verified,contact:v.contact,vulnerability:v.vulnerability,vulnerability_notes:v.vulnerability_notes,role_other:v.role_other,persons_present:persons.values(),pre_checks:{purpose_explained:v.purpose_explained,caution:v.caution,legal_representation:v.legal_representation},observations:v.observations,media_links:media.values().map(x=>x.url).filter(Boolean)};
+  const payload={interviewee_name:v.interviewee_name,interviewee_role:v.interviewee_role==='Subject'?'suspect':v.interviewee_role.toLowerCase(),interview_date:v.interview_date,location:v.location,summary:v.summary,details};
+  const result=existing?await db.from('interview_reports').update(payload).eq('id',existing.id).select():await db.from('interview_reports').insert({case_id:current.id,interviewed_by:me.id,...payload}).select();
+  if(result.error||!result.data?.length){msg.textContent=errText(result.error||{code:'42501'});return;}
+  $('add-panel').replaceChildren();await loadFiles();
+ });
+ $('add-panel').replaceChildren(form); form.querySelector('input,select,textarea').focus();
+}
+function openAddForm(type) {
+ if(type==='interview'){openInterviewForm();return;}
+ const cid=current.id, form=h('form',{className:'subform'}),msg=h('p',{className:'error',role:'alert'}), f={};
+ form.append(h('h3',{text:'Add '+FILE_TITLES[type]}));
+ const add=(label,key,kind='text',opts={})=>{const x=field(label,key,kind,opts);f[key]=x.el;form.append(x.wrap);return x.el;};
+ if(type==='exhibit'){
+  add('Exhibit #','exhibit_ref','text',{value:String(1+(crypto.getRandomValues(new Uint32Array(1))[0]%999)),required:true});
+  add('Link','link','url',{required:true});
+  add('Description','description','textarea',{required:true,wide:true}); add('Date','collected_on','date',{value:today(),required:true});
+  const links=repeatable('additional link',[{key:'url',label:'Link',type:'url'}]);form.append(links.holder);
+  submitButtons(form,msg,'Add exhibit');
+  form.addEventListener('submit',async e=>{e.preventDefault();const urls=[f.link.value.trim(),...links.values().map(x=>x.url)].filter(Boolean);const {error}=await db.from('exhibits').insert({case_id:cid,exhibit_ref:f.exhibit_ref.value.trim(),description:f.description.value.trim(),collected_on:f.collected_on.value,link_urls:urls,collected_by:me.id});if(error){msg.textContent=errText(error);return;}$('add-panel').replaceChildren();await loadFiles();});
+ } else if(type==='legal'){
+  add('Type','process_type','select',{options:Object.values(LABELS.legType),required:true});
+  add('Link','link_url','url',{required:true}); add('Date Issued','date_issued','date',{value:today(),required:true});
+  submitButtons(form,msg,'Add legal process');
+  form.addEventListener('submit',async e=>{e.preventDefault();const process_type=Object.keys(LABELS.legType).find(k=>LABELS.legType[k]===f.process_type.value)||'other';const {error}=await db.from('legal_processes').insert({case_id:cid,created_by:me.id,process_type,link_url:f.link_url.value.trim(),date_issued:f.date_issued.value});if(error){msg.textContent=errText(error);return;}$('add-panel').replaceChildren();await loadFiles();});
+ } else if(type==='organisation'){
+  const s=(t)=>form.append(section(t));
+  s('1. Organisation Identification');add('File Number','file_number','text',{value:fileNumber('NV'),required:true});f.file_number.readOnly=true;add('Primary Number','primary_number');add('Known Aliases','known_aliases','textarea',{rows:2});
+  s('2. Organisation Overview');add('Estimated Size','estimated_size');add('Active Since','active_since','text',{placeholder:'Year or date'});add('Area of Operation','area_of_operation');add('Structure Type','structure_type','select',{options:['Hierarchal','Network','Cell','Loose'],required:true});add('Summary','summary','textarea',{wide:true,rows:6,placeholder:'Summary (what the organisation is, what it does, who leads it, and why it is of interest).'});
+  s('3. Criminal Activity');const primary=repeatable('primary activity',[{key:'activity',label:'Primary Activity',wide:true}]);const secondary=repeatable('secondary activity',[{key:'activity',label:'Secondary Activity',wide:true}]);form.append(primary.holder,secondary.holder);
+  s('4. Structure and Hierarchy');const hierarchy=repeatable('position',[{key:'position',label:'Position'},{key:'name',label:'Name'},{key:'aliases',label:'Aliases'},{key:'responsibilities',label:'Role / Responsibilities',wide:true}]);form.append(hierarchy.holder);
+  s('5. Members and Associate Index');const members=repeatable('member',[{key:'name',label:'Name'},{key:'alias',label:'Alias'},{key:'age',label:'Age',type:'number'},{key:'role',label:'Role / Responsibilities',wide:true}]);form.append(members.holder);
+  s('6. Locations and Premises');const locations=repeatable('location',[{key:'address',label:'Address / Location'},{key:'use',label:'Use / Significance'},{key:'occupant',label:'Occupant / Owner'}]);form.append(locations.holder);
+  s('7. Associations and Rival Groups');const associations=repeatable('association',[{key:'entity',label:'Organisation / Person'},{key:'relationship',label:'Relationship'},{key:'details',label:'Nature / Details',wide:true}]);form.append(associations.holder);
+  s('8. Risk and Threat Assessment');add('Violence','violence','select',{options:['High','Medium','Low','Unknown'],required:true});add('Firearms','firearms','select',{options:['Known','Suspected','None known'],required:true});add('Weapons','weapons','select',{options:['Known','Suspected','None known'],required:true});add('Counter-Surveillance Awareness','counter_surveillance','select',{options:['High','Medium','Low'],required:true});add('Witness Intimidation Risk','witness_intimidation','select',{options:['High','Medium','Low'],required:true});add('Officer Safety Notes','officer_safety','textarea',{wide:true});add('Public Safety / Vulnerable Notes','public_safety','textarea',{wide:true});
+  s('9. Additional Notes');add('Additional Notes','additional_notes','textarea',{rows:8,wide:true});
+  submitButtons(form,msg,'Add organisation file');
+  form.addEventListener('submit',async e=>{e.preventDefault();const details={file_number:f.file_number.value,primary_number:f.primary_number.value,known_aliases:f.known_aliases.value,estimated_size:f.estimated_size.value,active_since:f.active_since.value,area_of_operation:f.area_of_operation.value,structure_type:f.structure_type.value,summary:f.summary.value,primary_activities:primary.values(),secondary_activities:secondary.values(),hierarchy:hierarchy.values(),members:members.values(),locations:locations.values(),associations:associations.values(),risk:{violence:f.violence.value,firearms:f.firearms.value,weapons:f.weapons.value,counter_surveillance:f.counter_surveillance.value,witness_intimidation:f.witness_intimidation.value,officer_safety:f.officer_safety.value,public_safety:f.public_safety.value},additional_notes:f.additional_notes.value};const {error}=await db.from('case_files').insert({case_id:cid,file_type:'organisation',name:details.file_number,details,created_by:me.id});if(error){msg.textContent=errText(error);return;}$('add-panel').replaceChildren();await loadFiles();});
+ } else {
+  const defs=CASE_FILE_FIELDS[type]||[];defs.forEach(d=>add(d.label,d.key,d.type==='textarea'?'textarea':d.type==='select'?'select':d.type||'text',{options:d.options?Object.values(d.options):undefined,required:d.required}));
+  submitButtons(form,msg,'Add to file');form.addEventListener('submit',async e=>{e.preventDefault();const vals=Object.fromEntries(Object.entries(f).map(([k,x])=>[k,x.value.trim()]));const {name,...details}=vals;const {error}=await db.from('case_files').insert({case_id:cid,file_type:type,name,details,created_by:me.id});if(error){msg.textContent=errText(error);return;}$('add-panel').replaceChildren();await loadFiles();});
+ }
+ $('add-panel').replaceChildren(form);form.querySelector('input,select,textarea')?.focus();
+}
+// Replace the old notice: interview reports can now be corrected in place where RLS permits.
+document.addEventListener('DOMContentLoaded',()=>{});
+</script>
+
 </body>
 </html>
