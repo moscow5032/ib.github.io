@@ -92,7 +92,11 @@
       <strong>Case Management</strong>
       <div id="who" class="who"></div>
     </div>
-    <button id="logout-btn" class="secondary" type="button">Sign out</button>
+    <div class="top-nav">
+      <button id="nav-cases" class="secondary" type="button">Cases</button>
+      <button id="nav-chs" class="secondary" type="button">Confidential Human Sources</button>
+      <button id="logout-btn" class="secondary" type="button">Sign out</button>
+    </div>
   </div>
 
   <!-- LOGIN -->
@@ -140,6 +144,46 @@
       <p id="empty" class="notice hidden">No cases found.</p>
       <p id="list-error" class="error" role="alert"></p>
     </div>
+    <div id="staff-names-card" class="card hidden">
+      <h2>Staff display names</h2>
+      <p class="notice">Administrators can assign a display name to each login username. The username used to sign in does not change.</p>
+      <div class="grid">
+        <div><label for="staff-account">Staff account</label><select id="staff-account"></select></div>
+        <div><label for="staff-full-name">Display name</label><input id="staff-full-name" maxlength="120" placeholder="e.g. John Smith"></div>
+      </div>
+      <button id="save-staff-name" type="button">Save display name</button>
+      <p id="staff-name-msg" class="notice" role="status"></p>
+    </div>
+  </section>
+
+  <!-- CONFIDENTIAL HUMAN SOURCES LIST -->
+  <section id="chs-list-view" class="hidden">
+    <div class="bar">
+      <h1>Confidential Human Sources</h1>
+      <button id="new-chs-btn" type="button" style="margin-top:0">New CHS</button>
+    </div>
+    <p id="chs-list-msg" class="ok" role="status"></p>
+    <div class="card">
+      <div>
+        <label for="chs-search">Search by CHS number</label>
+        <input id="chs-search" type="search" placeholder="Enter CHS number">
+      </div>
+      <div id="chs-status-groups" class="status-groups" style="margin-top:16px"></div>
+      <p id="chs-empty" class="notice hidden">No confidential human sources found.</p>
+      <p id="chs-list-error" class="error" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- CHS RECORD VIEW -->
+  <section id="chs-view" class="hidden">
+    <div class="bar">
+      <h1 id="chs-heading">New CHS</h1>
+      <button id="chs-back-btn" class="secondary" type="button">Back to CHS</button>
+    </div>
+    <p id="chs-readonly-note" class="notice hidden">You can view this source, but only its creator, supervisors and administrators can edit it.</p>
+    <form id="chs-form"></form>
+    <div id="chs-admin-actions" class="card hidden"></div>
+    <p id="chs-form-msg" class="error" role="alert"></p>
   </section>
 
   <!-- CASE VIEW -->
@@ -366,7 +410,7 @@
   }
 
   function showView(v) {
-    for (const id of ['login-view', 'list-view', 'case-view']) $(id).classList.toggle('hidden', id !== v + '-view');
+    for (const id of ['login-view', 'list-view', 'case-view', 'chs-list-view', 'chs-view']) $(id).classList.toggle('hidden', id !== v + '-view');
     $('topbar').classList.toggle('hidden', v === 'login');
   }
 
@@ -416,6 +460,7 @@
     me = mine;
     peopleById = new Map(profs.map(p => [p.id, p]));
     $('who').textContent = 'Signed in as ' + (me.full_name || me.username) + ' (' + me.role + ')';
+    setupStaffNameAdmin();
     choiceGroup('type-choices', 'invtype', LABELS.invType);
     choiceGroup('origin-choices', 'origin', LABELS.origin);
     choiceGroup('status-choices', 'status', LABELS.status);
@@ -443,27 +488,36 @@
     const rows = allCases.filter(c => (!dv || c.division === dv) && (!q || c.case_number.toLowerCase().includes(q)));
     const body = $('case-rows');
     body.replaceChildren();
-    for (const c of rows) {
-      const detail = h('tr', { className: 'hidden' }, h('td', { colSpan: 6 }));
-      const sel = h('select', { className: 'seemore', 'aria-label': 'See more about ' + c.case_number },
-        h('option', { value: '', text: 'See more' }),
-        SEE_MORE.map(([k, t]) => h('option', { value: k, text: t })));
-      sel.addEventListener('change', async () => {
-        if (!sel.value) { detail.classList.add('hidden'); return; }
-        detail.classList.remove('hidden');
-        const cell = detail.firstChild;
-        cell.replaceChildren(h('p', { className: 'notice', text: 'Loading...' }));
-        cell.replaceChildren(await detailPanel(c, sel.value));
-      });
-      body.append(
-        h('tr', {},
-          h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: c.case_number, onclick: () => openCase(c.id) })),
-          h('td', { text: LABELS.division[c.division] }),
-          h('td', { text: LABELS.status[c.status] }),
-          h('td', { text: c.investigating_officer_name || 'Not assigned' }),
-          h('td', { text: fmtDate(c.date_opened) }),
-          h('td', {}, sel)),
-        detail);
+    const statusOrder = ['active', 'suspended', 'inactive_cold', 'closed'];
+    for (const status of statusOrder) {
+      const items = rows.filter(c => c.status === status);
+      body.append(h('tr', { className: 'status-group-row' }, h('td', { colSpan: 6, text: LABELS.status[status] + ' (' + items.length + ')' })));
+      if (!items.length) {
+        body.append(h('tr', { className: 'status-empty-row' }, h('td', { colSpan: 6, text: 'No ' + LABELS.status[status].toLowerCase() + ' cases.' })));
+        continue;
+      }
+      for (const c of items) {
+        const detail = h('tr', { className: 'hidden' }, h('td', { colSpan: 6 }));
+        const sel = h('select', { className: 'seemore', 'aria-label': 'See more about ' + c.case_number },
+          h('option', { value: '', text: 'See more' }),
+          SEE_MORE.map(([k, t]) => h('option', { value: k, text: t })));
+        sel.addEventListener('change', async () => {
+          if (!sel.value) { detail.classList.add('hidden'); return; }
+          detail.classList.remove('hidden');
+          const cell = detail.firstChild;
+          cell.replaceChildren(h('p', { className: 'notice', text: 'Loading...' }));
+          cell.replaceChildren(await detailPanel(c, sel.value));
+        });
+        body.append(
+          h('tr', {},
+            h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: c.case_number, onclick: () => openCase(c.id) })),
+            h('td', { text: LABELS.division[c.division] }),
+            h('td', { text: LABELS.status[c.status] }),
+            h('td', { text: c.investigating_officer_name || 'Not assigned' }),
+            h('td', { text: fmtDate(c.date_opened) }),
+            h('td', {}, sel)),
+          detail);
+      }
     }
     $('empty').classList.toggle('hidden', rows.length > 0);
   }
@@ -510,6 +564,11 @@
 
   $('search').addEventListener('input', renderList);
   $('filter-division').addEventListener('change', renderList);
+  $('nav-cases').addEventListener('click', () => showList());
+  $('nav-chs').addEventListener('click', () => showChsList());
+  $('new-chs-btn').addEventListener('click', () => openChsForm(null));
+  $('chs-search').addEventListener('input', renderChsList);
+  $('chs-back-btn').addEventListener('click', () => showChsList());
   $('new-btn').addEventListener('click', newCase);
   $('back-btn').addEventListener('click', () => showList());
 
@@ -892,6 +951,190 @@
   // If there is already a valid session (page refresh), skip the login screen.
   showView('login');
   db.auth.getSession().then(({ data }) => { if (data.session) startApp(); });
+
+  // ---------- staff display-name administration ----------
+  function setupStaffNameAdmin() {
+    const card = $('staff-names-card');
+    if (!me || me.role !== 'admin') { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    const sel = $('staff-account');
+    sel.replaceChildren(...[...peopleById.values()].sort((a,b)=>a.username.localeCompare(b.username)).map(p =>
+      h('option', { value: p.id, text: p.username + (p.full_name ? ' — ' + p.full_name : ' — no display name') })));
+    const sync = () => { const p=peopleById.get(sel.value); $('staff-full-name').value=p?.full_name||''; };
+    sel.onchange=sync; sync();
+    $('save-staff-name').onclick=async()=>{
+      const id=sel.value, full_name=$('staff-full-name').value.trim();
+      if(!id||!full_name){$('staff-name-msg').textContent='Enter a display name.';return;}
+      const {data,error}=await db.from('profiles').update({full_name}).eq('id',id).select('id,username,full_name,role,active');
+      if(error||!data?.length){$('staff-name-msg').textContent=errText(error||{code:'42501'});return;}
+      peopleById.set(id,{...peopleById.get(id),...data[0]});
+      if(me.id===id){me={...me,full_name};$('who').textContent='Signed in as '+full_name+' ('+me.role+')';}
+      sel.options[sel.selectedIndex].text=data[0].username+' — '+full_name;
+      $('staff-name-msg').textContent='Display name saved.';
+    };
+  }
+
+  // ---------- Confidential Human Sources ----------
+  const CHS_STATUS = { prospective:'Prospective', active:'Active', suspended:'Suspended', deactivated:'Deactivated', cancelled:'Cancelled' };
+  const CHS_STATUS_ORDER = ['prospective','active','suspended','deactivated','cancelled'];
+  let allChs = [], currentChs = null;
+  const chsCanManage = x => !!me && (me.role==='supervisor' || me.role==='admin' || x.created_by===me.id);
+  const chsSourceNumber = () => { const d=new Date(); return 'CHS-'+String(d.getMonth()+1).padStart(2,'0')+String(d.getFullYear()).slice(-2)+'-'+randomDigits(4); };
+  const getChecks = root => [...root.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);
+  function checkboxOptions(title, options, selected=[], exclusive=false) {
+    const wrap=h('div',{className:'chs-checks'});
+    const controls=[];
+    options.forEach(([value,label])=>{
+      const input=h('input',{type:'checkbox',value,checked:selected.includes(value)});
+      const lab=h('label',{className:'chs-check'},input,h('span',{text:label}));
+      if(exclusive) input.addEventListener('change',()=>{if(input.checked)controls.forEach(other=>{if(other!==input)other.checked=false;});});
+      controls.push(input);wrap.append(lab);
+    });
+    return {wrap, values:()=>getChecks(wrap), setDisabled:disabled=>controls.forEach(x=>x.disabled=disabled)};
+  }
+  function chsField(form,label,key,type='text',opts={}) {
+    const f=field(label,key,type,opts); f.el.id='chs-'+key+'-'+Math.random().toString(36).slice(2,7); f.wrap.querySelector('label').htmlFor=f.el.id; form.append(f.wrap); return f.el;
+  }
+  function chsSection(form,title) { const sec=h('section',{className:'chs-section'},h('h2',{text:title}));form.append(sec);return sec; }
+  function addSimpleRepeat(holder,label,initial=[]) {
+    const rows=[]; const add=h('button',{type:'button',className:'secondary chs-add',text:'Add',onclick:()=>draw('')});
+    const draw=(value='')=>{const input=h('input',{type:'text',value,placeholder:label});const remove=h('button',{type:'button',className:'secondary chs-remove',text:'Remove',onclick:()=>{row.remove();rows.splice(rows.indexOf(input),1);}});const row=h('div',{className:'row chs-repeat-row'},input,remove);holder.insertBefore(row,add);rows.push(input);};
+    holder.append(add);initial.forEach(draw);return {values:()=>rows.map(x=>x.value.trim()).filter(Boolean)};
+  }
+  function chsTableRepeat(holder,initial=[]) {
+    const rows=[];const table=h('div',{className:'chs-intel-table'});
+    const head=h('div',{className:'chs-intel-head'},h('span',{text:'Date'}),h('span',{text:'Summary'}),h('span',{text:''}));table.append(head);
+    const add=h('button',{type:'button',className:'secondary chs-add',text:'Add'});
+    const draw=(item={})=>{const date=h('input',{type:'date',value:item.date||'', 'aria-label':'Intelligence date'});const summary=h('textarea',{rows:2,value:item.summary||'',placeholder:'Summary', 'aria-label':'Intelligence summary'});const row=h('div',{className:'chs-intel-row'},date,summary);const remove=h('button',{type:'button',className:'secondary chs-remove',text:'Remove',onclick:()=>{row.remove();rows.splice(rows.indexOf(entry),1);}});row.append(remove);table.append(row);const entry={date,summary,row};rows.push(entry);};
+    add.addEventListener('click',()=>draw());holder.append(table,add);initial.forEach(draw);
+    return {values:()=>rows.map(x=>({date:x.date.value,summary:x.summary.value.trim()})).filter(x=>x.date||x.summary)};
+  }
+  async function showChsList(message) {
+    currentChs=null;showView('chs-list');$('chs-list-error').textContent='';$('chs-list-msg').textContent=message||'';
+    const {data,error}=await db.from('chs_sources').select('*').order('registered_on',{ascending:false}).order('created_at',{ascending:false});
+    if(error){$('chs-list-error').textContent='Could not load confidential human sources. '+errText(error);return;}
+    allChs=data||[];renderChsList();
+  }
+  function renderChsList() {
+    const q = $('chs-search').value.trim().toLowerCase();
+    const rows = allChs.filter(x => !q || x.source_number.toLowerCase().includes(q));
+    const root = $('chs-status-groups'); root.replaceChildren();
+    for (const status of CHS_STATUS_ORDER) {
+      const items = rows.filter(x => x.status === status);
+      const group = h('section', { className: 'chs-status-group' });
+      group.append(h('h2', { text: CHS_STATUS[status] + ' (' + items.length + ')' }));
+      if (!items.length) {
+        group.append(h('p', { className: 'notice', text: 'No ' + CHS_STATUS[status].toLowerCase() + ' sources.' }));
+      } else {
+        const tbody = h('tbody');
+        items.forEach(x => {
+          const row = h('tr', {},
+            h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: x.source_number, onclick: () => openChsForm(x) })),
+            h('td', { text: CHS_STATUS[x.status] }),
+            h('td', { text: x.handler_name || 'Not assigned' }),
+            h('td', { text: fmtDate(x.registered_on) }),
+            h('td', {}, h('button', { type: 'button', className: 'secondary chs-small', text: 'Open', onclick: () => openChsForm(x) }))
+          );
+          tbody.append(row);
+        });
+        const table = h('div', { className: 'scroll' }, h('table', {},
+          h('thead', {}, h('tr', {}, ['CHS Number', 'Status', 'Handler', 'Registered', ''].map(x => h('th', { text: x })))), tbody));
+        group.append(table);
+      }
+      root.append(group);
+    }
+    $('chs-empty').classList.toggle('hidden', rows.length > 0);
+  }
+
+  function renderChsReadOnlyActions(record) {
+    const box=$('chs-admin-actions');box.replaceChildren();
+    if(!record||!me||!chsCanManage(record)){box.classList.add('hidden');return;}
+    box.classList.remove('hidden');
+    const del=h('button',{type:'button',className:'danger',text:'Delete CHS record'});
+    del.onclick=async()=>{if(!confirm('Delete '+record.source_number+'? This cannot be undone.'))return;const {data,error}=await db.from('chs_sources').delete().eq('id',record.id).select('id');if(error||!data?.length){$('chs-form-msg').textContent=errText(error||{code:'42501'});return;}await showChsList('CHS record deleted.');};
+    box.append(h('h2',{text:'Administration'}),del);
+  }
+  async function openChsForm(existing=null) {
+    currentChs=existing;showView('chs');$('chs-form-msg').textContent='';$('chs-heading').textContent=existing?existing.source_number:'New CHS';
+    const canEdit=!existing||chsCanManage(existing);$('chs-readonly-note').classList.toggle('hidden',canEdit);
+    const form=$('chs-form');form.replaceChildren();form.className='chs-form';
+    const d=existing||{};const identity=d.identity||{}, suitability=d.suitability||{}, conduct=d.criminal_conduct||{};
+    const section1=chsSection(form,'Source Registration');
+    const sourceNo=chsField(section1,'Source Number','source_number','text',{value:d.source_number||chsSourceNumber(),required:true});sourceNo.readOnly=true;
+    const coverHolder=h('div');const covers=addSimpleRepeat(coverHolder,'Cover name / pseudonym',d.cover_names||[]);section1.append(h('label',{text:'Cover Name / Pseudonym'}),coverHolder);
+    const registered=chsField(section1,'Date Registered','registered_on','date',{value:d.registered_on||today(),required:true});
+    const status=checkboxOptions('Status',Object.entries(CHS_STATUS),[d.status||'prospective'],true);section1.append(h('label',{text:'Status *'}),status.wrap);
+    const categories=checkboxOptions('Source Category',['adult','vulnerable_adult','juvenile','participating_informant'].map((v,i)=>[v,['Adult','Vulnerable adult','Juvenile (under 18)','Participating informant'][i]]),d.source_categories||[]);section1.append(h('label',{text:'Source Category *'}),categories.wrap);
+    const types=checkboxOptions('Source Type',[['established_contact','Established contact'],['insider','Insider'],['undercover_officer_link','Undercover officer link'],['other','Other']],d.source_types||[]);section1.append(h('label',{text:'Source Type *'}),types.wrap);
+    const typeOther=chsField(section1,'If Other, specify','source_type_other','text',{value:d.source_type_other||''});
+    const linkedHolder=h('div',{className:'chs-linked-cases'});const linkedIds=d.linked_case_ids||[];
+    if(allCases.length)allCases.forEach(c=>{const input=h('input',{type:'checkbox',value:c.id,checked:linkedIds.includes(c.id)});linkedHolder.append(h('label',{className:'chs-check'},input,h('span',{text:c.case_number+' — '+LABELS.status[c.status]})));});else linkedHolder.append(h('p',{className:'notice',text:'No cases are currently available.'}));
+    section1.append(h('label',{text:'Linked Case Numbers'}),linkedHolder);
+
+    const section2=chsSection(form,'Handling Team');
+    const team=h('div',{className:'scroll'},h('table',{className:'chs-team-table'},h('thead',{},h('tr',{},['Role','Name','Date Appointed'].map(x=>h('th',{text:x})))),h('tbody',{},
+      h('tr',{},h('td',{text:'Handler'}),h('td',{},h('input',{id:'chs-handler-name',value:d.handler_name||'',placeholder:'Full name',required:true})),h('td',{},h('input',{id:'chs-handler-date',type:'date',value:d.handler_date_appointed||'',required:true}))),
+      h('tr',{},h('td',{text:'Co-Handler'}),h('td',{},h('input',{id:'chs-cohandler-name',value:d.co_handler_name||'',placeholder:'Full name'})),h('td',{},h('input',{id:'chs-cohandler-date',type:'date',value:d.co_handler_date_appointed||''}))))));section2.append(team);
+
+    const section3=chsSection(form,'Source Identity');
+    const legalName=chsField(section3,'Full Legal Name','full_legal_name','text',{value:identity.full_legal_name||'',required:true});
+    const aliasHolder=h('div');const aliases=addSimpleRepeat(aliasHolder,'Alias',identity.aliases||[]);section3.append(h('label',{text:'Aliases'}),aliasHolder);
+    const age=chsField(section3,'Age','age','number',{value:identity.age||''});
+    const contact=chsField(section3,'Contact','contact','text',{value:identity.contact||'',placeholder:"CHS's username"});
+    const idVerified=checkboxOptions('ID Verified?',[['yes','Yes']],identity.id_verified?['yes']:[]);section3.append(h('label',{text:'ID Verified?'}),idVerified.wrap);
+    const assocHolder=h('div');const associates=addSimpleRepeat(assocHolder,'Known associate',identity.known_associates||[]);section3.append(h('label',{text:'Known Associates'}),assocHolder);
+
+    const section4=chsSection(form,'Background and Suitability');
+    const motivation=checkboxOptions('Motivation',[['public_interest','Public interest'],['financial','Financial'],['revenge','Revenge'],['leniency','Leniency / personal benefit'],['fear','Fear'],['other','Other']],suitability.motivation||[]);section4.append(h('label',{text:'Motivation'}),motivation.wrap);
+    const motivationOther=chsField(section4,'If Other, specify','motivation_other','text',{value:suitability.motivation_other||''});
+    const access=chsField(section4,'Access and Position','access_position','textarea',{value:suitability.access_position||'',placeholder:'What the source can reach or observe',rows:3});
+    const criminalHistory=chsField(section4,'Criminal History','criminal_history','textarea',{value:suitability.criminal_history||'',rows:3});
+    const vulnerability=chsField(section4,'Vulnerability, Health, Substance Use','vulnerability_health_substance','textarea',{value:suitability.vulnerability_health_substance||'',rows:3});
+
+    const section5=chsSection(form,'Criminal Conduct Authorisation');
+    const authorised=checkboxOptions('Authorised?',[['yes','Yes']],conduct.authorised?['yes']:[]);section5.append(h('label',{text:'Authorised?'}),authorised.wrap);
+    const conductAuthorised=chsField(section5,'Conduct Authorised','conduct_authorised','textarea',{value:conduct.conduct_authorised||'',rows:3});
+    const conductProhibited=chsField(section5,'Conduct Expressly Prohibited','conduct_prohibited','textarea',{value:conduct.conduct_prohibited||'',rows:3});
+    const approvingOfficer=chsField(section5,'Approving Officer','approving_officer','text',{value:conduct.approving_officer||''});
+
+    const section6=chsSection(form,'Intelligence Provided');
+    const intelHolder=h('div');const intel=chsTableRepeat(intelHolder,d.intelligence_entries||[]);section6.append(intelHolder);
+
+    const section7=chsSection(form,'Deactivation / Cancellation');
+    const deactivationDate=chsField(section7,'Date','deactivation_date','date',{value:d.deactivation_date||''});
+    const reasonOptions=[['objective_achieved','Objective achieved'],['no_longer_necessary','No longer necessary'],['security_risk','Security / risk'],['misconduct','Misconduct'],['other','Other']];
+    const reasons=checkboxOptions('Reason',reasonOptions,d.deactivation_reasons||[]);section7.append(h('label',{text:'Reason'}),reasons.wrap);
+    const reasonOther=chsField(section7,'If Other, specify','deactivation_other','text',{value:d.deactivation_other||''});
+    const deactivationNotice=h('p',{className:'notice',text:'This section is only available when Status is Deactivated or Cancelled.'});section7.prepend(deactivationNotice);
+
+    const buttons=h('div',{className:'case-actions chs-form-actions'},h('button',{type:'submit',text:existing?'Save changes':'Create CHS'}),h('button',{type:'button',className:'secondary',text:'Cancel',onclick:()=>showChsList()}));form.append(buttons);
+    const updateStatus=()=>{const terminal=['deactivated','cancelled'].includes(status.values()[0]);section7.classList.toggle('dim',!terminal);[deactivationDate,...reasons.wrap.querySelectorAll('input'),reasonOther].forEach(x=>x.disabled=!terminal);deactivationDate.required=terminal;};
+    status.wrap.addEventListener('change',updateStatus);updateStatus();
+    if(!canEdit)form.querySelectorAll('input,textarea,button').forEach(x=>{if(!(x.type==='button'&&x.textContent.trim()==='Cancel'))x.disabled=true;});
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();if(!canEdit)return;
+      const selectedStatus=status.values()[0],selectedTypes=types.values(),selectedCats=categories.values();
+      if(!selectedStatus)return $('chs-form-msg').textContent='Select a source status.';
+      if(!registered.value)return $('chs-form-msg').textContent='Enter the date registered.';
+      if(!selectedCats.length)return $('chs-form-msg').textContent='Select at least one source category.';
+      if(!selectedTypes.length)return $('chs-form-msg').textContent='Select at least one source type.';
+      if(motivation.values().includes('other')&&!motivationOther.value.trim())return $('chs-form-msg').textContent='Specify the other motivation.';
+      if(selectedTypes.includes('other')&&!typeOther.value.trim())return $('chs-form-msg').textContent='Specify the other source type.';
+      if(!legalName.value.trim())return $('chs-form-msg').textContent='Enter the source full legal name.';
+      if(!$('chs-handler-name').value.trim()||!$('chs-handler-date').value)return $('chs-form-msg').textContent='Handler name and date appointed are required.';
+      const terminal=['deactivated','cancelled'].includes(selectedStatus),selectedReasons=reasons.values();
+      if(terminal&&(!deactivationDate.value||!selectedReasons.length))return $('chs-form-msg').textContent='For Deactivated or Cancelled sources, enter the date and select at least one reason.';
+      if(terminal&&selectedReasons.includes('other')&&!reasonOther.value.trim())return $('chs-form-msg').textContent='Specify the other deactivation / cancellation reason.';
+      const payload={source_number:sourceNo.value,cover_names:covers.values(),registered_on:registered.value,status:selectedStatus,source_categories:selectedCats,source_types:selectedTypes,source_type_other:selectedTypes.includes('other')?typeOther.value.trim():null,handler_name:$('chs-handler-name').value.trim(),handler_date_appointed:$('chs-handler-date').value,co_handler_name:$('chs-cohandler-name').value.trim()||null,co_handler_date_appointed:$('chs-cohandler-date').value||null,linked_case_ids:[...linkedHolder.querySelectorAll('input:checked')].map(x=>x.value),identity:{full_legal_name:legalName.value.trim(),aliases:aliases.values(),age:age.value||null,contact:contact.value.trim()||null,id_verified:idVerified.values().includes('yes'),known_associates:associates.values()},suitability:{motivation:motivation.values(),motivation_other:motivation.values().includes('other')?motivationOther.value.trim():null,access_position:access.value,criminal_history:criminalHistory.value,vulnerability_health_substance:vulnerability.value},criminal_conduct:{authorised:authorised.values().includes('yes'),conduct_authorised:conductAuthorised.value,conduct_prohibited:conductProhibited.value,approving_officer:approvingOfficer.value},intelligence_entries:intel.values(),deactivation_date:terminal?deactivationDate.value:null,deactivation_reasons:terminal?selectedReasons:[],deactivation_other:terminal&&selectedReasons.includes('other')?reasonOther.value.trim():null};
+      const submit=buttons.querySelector('button[type="submit"]');submit.disabled=true;
+      const result=existing?await db.from('chs_sources').update(payload).eq('id',existing.id).select():await db.from('chs_sources').insert({...payload,created_by:me.id}).select();submit.disabled=false;
+      if(result.error||!result.data?.length){$('chs-form-msg').textContent=errText(result.error||{code:'42501'});return;}
+      await showChsList(existing?'CHS record updated.':'CHS record created.');
+    });
+    renderChsReadOnlyActions(existing);
+  }
+  $('chs-form').addEventListener('submit',e=>e.preventDefault());
+
 </script>
 
 <style>
@@ -1573,4 +1816,44 @@ th, td, .kv, .kv dd, .prewrap, #file-list, #file-list * { overflow-wrap: anywher
 }
 #files a, #files button.linkbtn { color: #4d5b49 !important; }
 #files button.danger { background: #914c49 !important; color: #fff !important; border-color: #914c49 !important; }
+</style>
+
+
+<style>
+/* CHS workspace and status-group presentation */
+.top-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.top-nav button{margin:0;min-height:32px;padding:6px 10px;font-size:11px}
+.status-group-row td{background:#f0f2ed;color:#4d5649;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.07em;padding:10px}
+.status-empty-row td{color:#92978f;font-size:12px;padding:9px 12px;background:#fbfbf9}
+.status-groups{display:grid;gap:22px}
+.chs-status-group{border-top:1px solid var(--line);padding-top:14px}
+.chs-status-group h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#50594d;margin:0 0 9px}
+.chs-status-group table{font-size:12px}
+.chs-status-group th{background:#f5f6f3;font-size:10px;text-transform:uppercase;letter-spacing:.07em}
+.chs-status-group td{vertical-align:middle}
+.chs-small{margin:0!important;min-height:28px!important;padding:5px 9px!important;font-size:11px!important}
+.chs-form{display:grid;gap:14px}
+.chs-section{background:#fbfbf9;border:1px solid #dfe2dc;border-radius:8px;padding:21px 23px}
+.chs-section h2{font-size:15px;font-weight:680;margin:0 0 16px;padding-bottom:11px;border-bottom:1px solid #e2e5df}
+.chs-checks{display:flex;flex-wrap:wrap;gap:7px;margin:7px 0 13px}
+.chs-check{display:inline-flex;align-items:center;gap:8px;margin:0;padding:7px 10px;border:1px solid #d8ddd5;border-radius:5px;background:#fff;color:#4f564c;font-size:12px;font-weight:550;cursor:pointer}
+.chs-check input{width:14px;height:14px;min-height:0;margin:0;accent-color:#626d5c}
+.chs-check:has(input:checked){background:#edf0ea;border-color:#aeb8a7;color:#30382e}
+.chs-linked-cases{max-height:180px;overflow:auto;padding:9px;border:1px solid #dfe2dc;border-radius:5px;background:#fff;display:flex;flex-wrap:wrap;gap:6px}
+.chs-linked-cases .chs-check{margin:0}
+.chs-repeat-row{align-items:center;max-width:760px;margin:6px 0}
+.chs-repeat-row input{margin:0}
+.chs-add,.chs-remove{margin:6px 0 0!important;min-height:30px!important;padding:5px 10px!important;font-size:11px!important}
+.chs-remove{margin:0!important}
+.chs-intel-table{border:1px solid #dfe2dc;border-radius:6px;overflow:hidden;background:#fff}
+.chs-intel-head,.chs-intel-row{display:grid;grid-template-columns:minmax(130px,190px) minmax(240px,1fr) 78px;gap:10px;align-items:center;padding:9px 11px}
+.chs-intel-head{background:#f3f5f1;color:#6a7167;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.chs-intel-row{border-top:1px solid #e5e8e2}
+.chs-intel-row input,.chs-intel-row textarea{margin:0;min-height:36px}
+.chs-intel-row textarea{min-height:52px}
+.chs-team-table input{margin:0;min-width:150px}
+.chs-team-table td:first-child{font-weight:650;white-space:nowrap}
+.chs-form-actions{padding:4px 0 12px}
+#chs-admin-actions{border-color:#e5d4d1;background:#fbf7f6}
+@media(max-width:700px){.top-nav{width:100%}.top-nav button{flex:1}.chs-section{padding:17px 14px}.chs-intel-head{display:none}.chs-intel-row{grid-template-columns:1fr;gap:7px}.chs-team-table{min-width:620px}.chs-repeat-row{align-items:stretch}.chs-repeat-row button{flex:0 0 auto}}
 </style>
