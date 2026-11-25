@@ -121,23 +121,13 @@
     </div>
     <p id="list-msg" class="ok" role="status"></p>
     <div class="card">
-      <div class="grid">
-        <div>
-          <label for="search">Search by case number</label>
-          <input id="search" type="search">
-        </div>
-        <div>
-          <label for="filter-division">Division</label>
-          <select id="filter-division">
-            <option value="">All divisions</option>
-            <option value="major_crimes">Major Crimes Division</option>
-            <option value="organised_crime">Organised Crime Division</option>
-          </select>
-        </div>
+      <div>
+        <label for="search">Search by case number</label>
+        <input id="search" type="search" placeholder="Enter case number">
       </div>
       <div class="scroll" style="margin-top:12px">
         <table>
-          <thead><tr><th>Case number</th><th>Division</th><th>Status</th><th>Investigating officer</th><th>Opened</th><th><span class="sr">More</span></th></tr></thead>
+          <thead><tr><th>Case number</th><th>Status</th><th>Investigating officer</th><th>Opened</th><th><span class="sr">More</span></th></tr></thead>
           <tbody id="case-rows"></tbody>
         </table>
       </div>
@@ -196,90 +186,27 @@
 
     <form id="case-form">
       <fieldset id="case-fields">
-
-        <div class="card">
-          <h2>Case identification</h2>
+        <div class="card case-section">
+          <h2>Case Identification</h2>
           <div class="grid">
-            <div>
-              <label for="f-division">Division</label>
-              <select id="f-division" required>
-                <option value="">Choose a division</option>
-                <option value="major_crimes">Major Crimes Division</option>
-                <option value="organised_crime">Organised Crime Division</option>
-              </select>
-            </div>
-            <div>
-              <label for="f-opened">Date opened</label>
-              <input id="f-opened" type="date" required>
-            </div>
-            <div class="wide">
-              <label id="type-label">Type of investigation</label>
-              <div id="type-choices" class="choices" role="radiogroup" aria-labelledby="type-label"></div>
-            </div>
-            <div class="wide">
-              <label for="f-number">Case number</label>
-              <div class="row">
-                <input id="f-number" required maxlength="20" placeholder="MCD-1126-PER-1234" autocapitalize="characters">
-                <button id="gen-btn" class="secondary" type="button">Generate number</button>
-              </div>
-              <p class="notice" id="number-hint">Choose a division, type and date opened, then generate. Format: division, month and year, type, four digits.</p>
-            </div>
-            <div class="wide">
-              <label for="f-related">Related case numbers</label>
-              <input id="f-related" placeholder="Separate with commas">
-            </div>
-            <div class="wide">
-              <label id="origin-label">Case origin</label>
-              <div id="origin-choices" class="choices" role="radiogroup" aria-labelledby="origin-label"></div>
-              <label for="f-origin-other">If other, describe</label>
-              <input id="f-origin-other" maxlength="200">
-            </div>
+            <div><label for="f-division">Division *</label><select id="f-division" required><option value="">Select division</option><option value="major_crimes">Major Crimes Division (MCD)</option><option value="organised_crime">Organised Crime Division (OCD)</option></select></div>
+            <div><label for="f-opened">Date Opened *</label><input id="f-opened" type="date" required></div>
+            <div><label>Case Subject *</label><div id="type-choices" class="choices" role="radiogroup" aria-label="Case subject"></div></div>
+            <div class="wide"><label for="f-number">Case Number *</label><div class="row"><input id="f-number" required maxlength="24" placeholder="OCD-1126-ORG-7236" autocapitalize="characters"><button id="gen-btn" class="secondary" type="button">Generate</button></div><p class="notice" id="number-hint">Format: Division–MMYY–Subject–4 digits.</p></div>
+            <div class="wide"><label>Case Origin *</label><div id="origin-choices" class="choices" role="radiogroup" aria-label="Case origin"></div><label for="f-origin-other">Other origin description</label><input id="f-origin-other" maxlength="200" placeholder="Specify other origin"></div>
+            <div class="wide"><label>Related Case Numbers</label><div id="related-case-list" class="choices related-case-choices"></div></div>
           </div>
         </div>
-
-        <div class="card">
-          <h2>Assignment</h2>
-          <div class="grid">
-            <div>
-              <label for="f-officer">Investigating officer</label>
-              <input id="f-officer" required maxlength="100" placeholder="Full name">
-            </div>
-            <div>
-              <label for="f-prosecutor">Prosecutor</label>
-              <input id="f-prosecutor" maxlength="200" placeholder="Full name">
-            </div>
-            <div class="wide">
-              <label id="assist-label">Assistant officers</label>
-              <div id="assistant-list" role="group" aria-labelledby="assist-label"></div>
-              <button id="assist-add" class="secondary" type="button" style="margin-top:4px">Add</button>
-            </div>
-          </div>
+        <div class="card case-section"><h2>Assignment</h2>
+          <div class="assignment-table scroll"><table><thead><tr><th>Role</th><th>Name</th><th>Date Assigned</th></tr></thead><tbody>
+            <tr><td>Investigating Officer</td><td><input id="f-officer" readonly aria-label="Investigating Officer name"></td><td><input id="f-officer-date" type="date" aria-label="Investigating Officer date assigned"></td></tr>
+            <tr><td>Assisting Officers</td><td colspan="2"><div id="assistant-list" role="group" aria-label="Assisting officers"></div><button id="assist-add" class="secondary" type="button" style="margin-top:5px">Add</button></td></tr>
+            <tr><td>Prosecutor</td><td><input id="f-prosecutor" placeholder="Name"></td><td><input id="f-prosecutor-date" type="date" aria-label="Prosecutor date assigned"></td></tr>
+          </tbody></table></div>
         </div>
-
-        <div class="card">
-          <h2>Current status</h2>
-          <div id="status-choices" class="choices" role="radiogroup" aria-label="Current status"></div>
-        </div>
-
-        <div class="card" id="closure-card">
-          <h2>Closure</h2>
-          <p class="notice">Available when the status is set to Closed.</p>
-          <fieldset id="closing-fields">
-            <label id="closing-label">Closing reason</label>
-            <div id="closing-choices" class="choices" role="radiogroup" aria-labelledby="closing-label"></div>
-            <div class="grid">
-              <div>
-                <label for="f-closing-other">If other, describe</label>
-                <input id="f-closing-other" maxlength="200">
-              </div>
-              <div>
-                <label for="f-closed-on">Date closed</label>
-                <input id="f-closed-on" type="date">
-              </div>
-            </div>
-          </fieldset>
-        </div>
-
+        <div class="card case-section"><h2>Current Status</h2><div id="status-choices" class="choices" role="radiogroup" aria-label="Current status"></div><button id="reopen-btn" class="secondary hidden" type="button">Reopen</button><p id="status-help" class="notice"></p></div>
+        <div class="card case-section" id="closure-card"><h2>Closure</h2><p class="notice">Required when status is Closed.</p><fieldset id="closing-fields"><label>Closing Reason</label><div id="closing-choices" class="choices" role="radiogroup" aria-label="Closing reason"></div><div class="grid"><div><label for="f-closing-other">If Other, describe</label><input id="f-closing-other" maxlength="200"></div><div><label for="f-closed-on">Date Closed</label><input id="f-closed-on" type="date"></div></div></fieldset></div>
+        <div class="card case-section"><h2>Status Change Log</h2><div id="status-log-table"></div></div>
       </fieldset>
       <div class="case-actions">
         <button id="save-btn" type="submit">Save case</button>
@@ -290,7 +217,7 @@
     <!-- FILE SECTIONS -->
     <div id="files" class="card hidden" style="margin-top:24px">
       <div class="bar" style="margin-bottom:4px">
-        <h2 style="margin:0">File sections</h2>
+        <h2 style="margin:0">File Sections</h2>
         <details class="menu" id="add-menu">
           <summary>Add</summary>
           <div class="menu-items" id="add-items"></div>
@@ -328,9 +255,9 @@
 
   const LABELS = {
     division: { major_crimes: 'Major Crimes Division', organised_crime: 'Organised Crime Division' },
-    invType:  { organisation: 'Criminal organisation (ORG)', group: 'Group of people (GRP)', person: 'Person (PER)' },
+    invType:  { organisation: 'ORG', group: 'GRP', person: 'PER' },
     origin:   { call_for_service: 'Call for service', referral: 'Referral', self_initiated: 'Self-initiated', other: 'Other' },
-    status:   { active: 'Active', suspended: 'Suspended', inactive_cold: 'Inactive/Cold', closed: 'Closed' },
+    status:   { draft: 'Draft', active: 'Active', reopened: 'Reopened', inactive_cold: 'Cold / Dormant', suspended: 'Suspended', closed: 'Closed' },
     closing:  { cleared_by_arrest: 'Cleared by arrest', cleared_by_exception: 'Cleared by exception', unfounded: 'Unfounded', other: 'Other' },
     intRole:  { suspect: 'Suspect', witness: 'Witness', victim: 'Victim', informant: 'Informant', other: 'Other' },
     exStatus: { in_custody: 'In custody', submitted_to_lab: 'Submitted to lab', returned: 'Returned', destroyed: 'Destroyed' },
@@ -484,20 +411,21 @@
   }
 
   function renderList() {
-    const q = $('search').value.trim().toLowerCase(), dv = $('filter-division').value;
-    const rows = allCases.filter(c => (!dv || c.division === dv) && (!q || c.case_number.toLowerCase().includes(q)));
+    const q = $('search').value.trim().toLowerCase();
+    const rows = allCases.filter(c => (!q || c.case_number.toLowerCase().includes(q)));
+    const statusOrder = ['active', 'reopened', 'draft', 'inactive_cold', 'suspended', 'closed'];
     const body = $('case-rows');
     body.replaceChildren();
-    const statusOrder = ['active', 'suspended', 'inactive_cold', 'closed'];
+    
     for (const status of statusOrder) {
       const items = rows.filter(c => c.status === status);
-      body.append(h('tr', { className: 'status-group-row' }, h('td', { colSpan: 6, text: LABELS.status[status] + ' (' + items.length + ')' })));
+      body.append(h('tr', { className: 'status-group-row' }, h('td', { colSpan: 5, text: LABELS.status[status] + ' (' + items.length + ')' })));
       if (!items.length) {
-        body.append(h('tr', { className: 'status-empty-row' }, h('td', { colSpan: 6, text: 'No ' + LABELS.status[status].toLowerCase() + ' cases.' })));
+        body.append(h('tr', { className: 'status-empty-row' }, h('td', { colSpan: 5, text: 'No ' + LABELS.status[status].toLowerCase() + ' cases.' })));
         continue;
       }
       for (const c of items) {
-        const detail = h('tr', { className: 'hidden' }, h('td', { colSpan: 6 }));
+        const detail = h('tr', { className: 'hidden' }, h('td', { colSpan: 5 }));
         const sel = h('select', { className: 'seemore', 'aria-label': 'See more about ' + c.case_number },
           h('option', { value: '', text: 'See more' }),
           SEE_MORE.map(([k, t]) => h('option', { value: k, text: t })));
@@ -511,9 +439,8 @@
         body.append(
           h('tr', {},
             h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: c.case_number, onclick: () => openCase(c.id) })),
-            h('td', { text: LABELS.division[c.division] }),
-            h('td', { text: LABELS.status[c.status] }),
-            h('td', { text: nameOf(c.investigating_officer_id || c.created_by) }),
+            h('td', { text: LABELS.status[c.status] || c.status }),
+            h('td', { text: c.status === 'closed' ? 'Unassigned' : nameOf(c.investigating_officer_id || c.created_by) }),
             h('td', { text: fmtDate(c.date_opened) }),
             h('td', {}, sel)),
           detail);
@@ -531,11 +458,11 @@
         ['Type of investigation', LABELS.invType[c.investigation_type]],
         ['Date opened', fmtDate(c.date_opened)],
         ['Case origin', LABELS.origin[c.origin] + (c.origin_other ? ': ' + c.origin_other : '')],
-        ['Related case numbers', c.related_case_numbers.join(', ')]
+        ['Related case numbers', (c.related_case_ids || []).map(id => allCases.find(x=>x.id===id)?.case_number).filter(Boolean).join(', ') || (c.related_case_numbers || []).join(', ')]
       ]));
     } else if (section === 'assignment') {
       wrap.append(kv([
-        ['Investigating officer', nameOf(c.investigating_officer_id || c.created_by)],
+        ['Investigating officer', c.status === 'closed' ? 'Unassigned (case closed)' : nameOf(c.investigating_officer_id || c.created_by)],
         ['Assistant officers', (c.assistant_officer_ids?.length ? c.assistant_officer_ids.map(nameOf) : (c.assistant_officers || [])).join(', ')],
         ['Prosecutor', c.prosecutor]
       ]));
@@ -563,7 +490,6 @@
   }
 
   $('search').addEventListener('input', renderList);
-  $('filter-division').addEventListener('change', renderList);
   $('nav-cases').addEventListener('click', () => showList());
   $('nav-chs').addEventListener('click', () => showChsList());
   $('new-chs-btn').addEventListener('click', () => openChsForm(null));
@@ -578,26 +504,36 @@
       .sort((a,b) => (a.full_name || a.username).localeCompare(b.full_name || b.username));
   }
   function staffOptionLabel(p) { return p.full_name || p.username; }
-  function addAssistantRow(value = '') {
+  function addAssistantRow(value = '', assignedOn = '') {
     const staff = eligibleStaff();
     const selected = peopleById.has(value) ? value : (staff.find(p => p.full_name === value || p.username === value)?.id || '');
     const input = h('select', { 'aria-label': 'Assistant officer' },
       h('option', { value: '', text: 'Select assistant officer' }),
       staff.map(p => h('option', { value: p.id, text: staffOptionLabel(p) })));
     input.value = selected;
-    const row = h('div', { className: 'row assistant-row' }, input,
+    const date = h('input', { type:'date', value:assignedOn, 'aria-label':'Assistant officer date assigned' });
+    const row = h('div', { className: 'row assistant-row' }, input, date,
       h('button', { type: 'button', className: 'secondary', text: 'Remove', onclick: () => row.remove() }));
     $('assistant-list').append(row);
     return input;
   }
   $('assist-add').addEventListener('click', () => addAssistantRow().focus());
 
+  function statusOptionsForCase(c) {
+    if (!c) return { draft:'Draft', active:'Active', suspended:'Suspended', inactive_cold:'Cold / Dormant', closed:'Closed' };
+    if (c.status === 'closed') return { closed:'Closed' };
+    if (c.status === 'reopened') return { reopened:'Reopened', suspended:'Suspended', inactive_cold:'Cold / Dormant', closed:'Closed' };
+    return { draft:'Draft', active:'Active', suspended:'Suspended', inactive_cold:'Cold / Dormant', closed:'Closed' };
+  }
   function applyState() {
     const closed = getChoice('status') === 'closed';
     $('closing-fields').disabled = !closed;
     $('closure-card').classList.toggle('dim', !closed);
     $('f-origin-other').disabled = getChoice('origin') !== 'other';
     $('f-closing-other').disabled = !(closed && getChoice('closing') === 'other');
+    const isClosedCurrent = current && current.status === 'closed';
+    $('reopen-btn').classList.toggle('hidden', !(isClosedCurrent && canManage));
+    $('status-help').textContent = current && current.status === 'reopened' ? 'This case has been reopened. Active cannot be selected again; it may be Reopened, Suspended, Cold / Dormant or Closed.' : '';
   }
   $('case-form').addEventListener('change', applyState);
 
@@ -608,20 +544,24 @@
     $('gen-btn').classList.toggle('hidden', editing);
     $('number-hint').classList.toggle('hidden', editing);
     $('f-division').value = c ? c.division : '';
-    $('f-division').disabled = editing;                  // locked: the case number is built from these
+    $('f-division').disabled = editing;
     setChoice('invtype', c ? c.investigation_type : null);
     document.querySelectorAll('input[name="invtype"]').forEach(r => { r.disabled = editing; });
     $('f-opened').value = c ? c.date_opened : today();
+    $('f-officer-date').value = c ? (c.investigating_officer_assigned_on || c.date_opened || '') : today();
+    $('f-prosecutor-date').value = c ? (c.prosecutor_assigned_on || '') : '';
+    fillRelatedCases(c ? (c.related_case_ids || []) : []);
     setChoice('origin', c ? c.origin : null);
     $('f-origin-other').value = (c && c.origin_other) || '';
-    $('f-related').value = c ? c.related_case_numbers.join(', ') : '';
-    $('f-officer').value = c ? nameOf(c.investigating_officer_id || c.created_by) : (me.full_name || me.username);
+    
+    $('f-officer').value = c && c.status === 'closed' ? 'Unassigned (case closed)' : (c ? nameOf(c.investigating_officer_id || c.created_by) : (me.full_name || me.username));
     $('f-officer').readOnly = true;
     $('f-officer').title = 'The person who creates the case is permanently recorded as Investigating Officer.';
     $('f-prosecutor').value = (c && c.prosecutor) || '';
     $('assistant-list').replaceChildren();
-    (c ? (c.assistant_officer_ids?.length ? c.assistant_officer_ids : (c.assistant_officers || [])) : []).forEach(n => addAssistantRow(n));
-    setChoice('status', c ? c.status : 'active');
+    (c ? (c.assistant_officer_ids?.length ? c.assistant_officer_ids.map(id=>({id,name:nameOf(id)})) : (c.assistant_officers || []).map(name=>({name}))) : []).forEach(x => addAssistantRow(x.id || x.name, c.assistant_officer_dates?.[x.id] || ''));
+    choiceGroup('status-choices', 'status', statusOptionsForCase(c));
+    setChoice('status', c ? c.status : 'draft');
     setChoice('closing', c ? c.closing_reason : null);
     $('f-closing-other').value = (c && c.closing_other) || '';
     $('f-closed-on').value = (c && c.date_closed) || '';
@@ -631,6 +571,7 @@
     $('save-btn').textContent = c ? 'Save changes' : 'Create case';
     $('readonly-note').classList.toggle('hidden', canManage);
     $('case-heading').textContent = c ? c.case_number : 'New case';
+    loadStatusLog(c && c.id);
     $('case-msg').textContent = '';
     applyState();
   }
@@ -657,6 +598,34 @@
     afterCaseShown();
   }
 
+
+  function fillRelatedCases(selectedIds) {
+    const holder = $('related-case-list'); holder.replaceChildren();
+    const ids = new Set(selectedIds || []);
+    allCases.filter(x => !current || x.id !== current.id).forEach(x => {
+      const cb = h('input', { type:'checkbox', value:x.id, checked:ids.has(x.id) });
+      holder.append(h('label', { className:'choice related-case-choice' }, cb, h('span', { text:x.case_number + ' · ' + (LABELS.status[x.status] || x.status) })))
+    });
+  }
+  async function loadStatusLog(caseId) {
+    const holder = $('status-log-table'); holder.replaceChildren();
+    if (!caseId) { holder.append(h('p',{className:'notice',text:'Status changes will appear here after the case is created.'})); return; }
+    const {data,error}=await db.from('case_status_history').select('*').eq('case_id',caseId).order('changed_at',{ascending:true});
+    if(error){ holder.append(h('p',{className:'notice',text:'Status history is unavailable until the migration is applied.'})); return; }
+    const rows=(data||[]).map(x=>[new Date(x.changed_at).toLocaleDateString('en-GB'),LABELS.status[x.from_status]||x.from_status||'—',LABELS.status[x.to_status]||x.to_status,nameOf(x.changed_by)]);
+    holder.append(rows.length?dataTable(['Date','From','To','Changed By'],rows):h('p',{className:'notice',text:'No status changes recorded yet.'}));
+  }
+  $('reopen-btn').addEventListener('click', () => {
+    if (!current || current.status !== 'closed' || !canManage) return;
+    choiceGroup('status-choices','status',statusOptionsForCase({...current,status:'reopened'}));
+    setChoice('status','reopened');
+    $('f-officer').value = me.full_name || me.username;
+    $('f-officer-date').value = today();
+    $('f-prosecutor').value=''; $('f-prosecutor-date').value=''; $('assistant-list').replaceChildren();
+    $('save-btn').textContent='Reopen case'; $('save-btn').classList.remove('hidden');
+    $('case-msg').textContent='Reopening will assign you as Investigating Officer.';
+    applyState();
+  });
   function genNumber(division, type, dateStr) {
     const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
     const mm = String(d.getMonth() + 1).padStart(2, '0'), yy = String(d.getFullYear()).slice(-2);
@@ -675,15 +644,19 @@
     $('case-msg').className = good ? 'ok' : 'error';
   }
 
+  function divisionValid(){return !!$('f-division').value;}
   $('case-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     setMsg('');
-    const status = getChoice('status'), origin = getChoice('origin'), closing = getChoice('closing'), type = getChoice('invtype');
+    const status = getChoice('status'), origin = getChoice('origin'), closing = getChoice('closing'), type = getChoice('invtype'), division = $('f-division').value;
     if (!current) {
-      if (!type) return setMsg('Choose a type of investigation.');
+      if (!type) return setMsg('Choose a case subject.');
+      if (!division) return setMsg('Choose a division.');
       if (!NUMBER_RE.test($('f-number').value.trim().toUpperCase())) return setMsg('Case number must look like MCD-1126-PER-1234. Use Generate number.');
     }
     if (!origin) return setMsg('Choose a case origin.');
+    if (!type) return setMsg('Choose a case subject.');
+    if (!current && !divisionValid()) return setMsg('Choose a division.');
     if (origin === 'other' && !$('f-origin-other').value.trim()) return setMsg('Describe the other origin.');
     if (status === 'closed') {
       if (!closing) return setMsg('Choose a closing reason.');
@@ -691,17 +664,24 @@
       if (!$('f-closed-on').value) return setMsg('Enter the date closed.');
     }
     const closed = status === 'closed';
+    if (current && current.status === 'reopened' && status === 'active') return setMsg('Reopened cases cannot be returned to Active.');
+    if (current && current.status === 'closed' && status !== 'reopened' && status !== 'closed') return setMsg('Use Reopen to reopen a closed case.');
     const row = {
       date_opened: $('f-opened').value,
+      investigating_officer_assigned_on: $('f-officer-date').value || null,
+      prosecutor_assigned_on: $('f-prosecutor-date').value || null,
+      related_case_ids: [...document.querySelectorAll('#related-case-list input[type=checkbox]:checked')].map(x=>x.value),
       origin,
       origin_other: origin === 'other' ? $('f-origin-other').value.trim() : null,
-      related_case_numbers: $('f-related').value.split(',').map(s => s.trim()).filter(Boolean),
+      related_case_numbers: [...document.querySelectorAll('#related-case-list input[type=checkbox]:checked')].map(x => allCases.find(c=>c.id===x.value)?.case_number).filter(Boolean),
       investigating_officer_name: $('f-officer').value.trim(),
-      assistant_officer_ids: [...document.querySelectorAll('#assistant-list select')].map(x => x.value).filter(Boolean),
-      assistant_officers: [...document.querySelectorAll('#assistant-list select')].filter(x => x.value).map(x => nameOf(x.value)),
-      prosecutor: $('f-prosecutor').value.trim() || null,
+      assistant_officer_ids: closed ? [] : [...document.querySelectorAll('#assistant-list select')].map(x => x.value).filter(Boolean),
+      assistant_officers: closed ? [] : [...document.querySelectorAll('#assistant-list select')].filter(x => x.value).map(x => nameOf(x.value)),
+      assistant_officer_dates: closed ? {} : Object.fromEntries([...document.querySelectorAll('#assistant-list .assistant-row')].filter(r=>r.querySelector('select').value).map(r=>[r.querySelector('select').value,r.querySelector('input[type=date]').value || null])),
+      prosecutor: closed ? null : ($('f-prosecutor').value.trim() || null),
       status,
       closing_reason: closed ? closing : null,
+      investigating_officer_id: (current && current.status === 'closed' && status === 'reopened') ? me.id : undefined,
       closing_other: closed && closing === 'other' ? $('f-closing-other').value.trim() : null,
       date_closed: closed ? $('f-closed-on').value : null
     };
@@ -714,7 +694,7 @@
       if (!error && !saved) error = { code: '42501' };   // blocked by row-level security
     } else {
       row.case_number = $('f-number').value.trim().toUpperCase();
-      row.division = $('f-division').value;
+      row.division = division;
       row.investigation_type = type;
       const r = await db.from('cases').insert(row).select().single();
       error = r.error; saved = r.data;
@@ -1907,4 +1887,28 @@ th, td, .kv, .kv dd, .prewrap, #file-list, #file-list * { overflow-wrap: anywher
 </style>
 
 </body>
-</html>
+</html><style>
+.case-section { padding:22px 24px; margin-bottom:14px; }
+.case-section h2 { margin-bottom:16px; font-size:15px; }
+.case-section label { margin-top:11px; }
+.related-case-choices { max-height:190px; overflow:auto; padding:7px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+.related-case-choice { width:100%; }
+.related-case-choice span { width:100%; text-align:left; border-radius:4px; }
+.assignment-table table { min-width:620px; }
+.assignment-table td { vertical-align:middle; }
+.assignment-table td:first-child { font-weight:600; min-width:170px; }
+.assignment-table input { min-width:145px; }
+#assistant-list .assistant-row { display:grid; grid-template-columns:minmax(180px,1fr) minmax(130px,180px) auto; align-items:center; gap:8px; }
+#assistant-list .assistant-row button { margin:0; }
+@media(max-width:620px){#assistant-list .assistant-row{grid-template-columns:1fr;}}
+#assistant-list .assistant-row { display:grid; grid-template-columns:minmax(180px,1fr) minmax(130px,180px) auto; align-items:center; gap:8px; }
+#assistant-list .assistant-row button { margin:0; }
+@media(max-width:620px){#assistant-list .assistant-row{grid-template-columns:1fr;}}
+#status-log-table table { min-width:520px; }
+#status-log-table th { font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+#status-log-table td { font-size:12px; }
+#status-choices .choice span { min-width:96px; text-align:center; }
+.case-section .choices { gap:6px; }
+.case-section .choice span { padding:7px 11px; font-size:12px; }
+.case-section #reopen-btn { margin-top:12px; }
+</style>
