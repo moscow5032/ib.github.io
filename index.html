@@ -7,45 +7,82 @@
 <style>
   :root {
     --bg: #eef1f5; --card: #ffffff; --text: #1b2430; --muted: #5b6776;
-    --line: #d5dbe3; --accent: #1f3a5f; --accent-text: #ffffff; --error: #a4262c;
+    --line: #d5dbe3; --accent: #1f3a5f; --accent-text: #ffffff; --error: #a4262c; --ok: #1d6b3a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #141a22; --card: #1d2530; --text: #e8edf3; --muted: #9aa7b6;
-      --line: #33404f; --accent: #6f9bd1; --accent-text: #0d1620; --error: #ff8a8f;
+      --line: #33404f; --accent: #6f9bd1; --accent-text: #0d1620; --error: #ff8a8f; --ok: #7fd49b;
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
          background: var(--bg); color: var(--text); line-height: 1.5; }
-  main { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 24px; }
-  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  h1 { font-size: 1.4rem; margin: 0; }
   h2 { font-size: 1.1rem; margin: 0 0 12px; }
-  p.sub { color: var(--muted); margin: 0 0 20px; }
+  h3 { font-size: 1rem; margin: 20px 0 0; }
+  p.sub { color: var(--muted); margin: 4px 0 20px; }
   label { display: block; font-weight: 600; margin: 14px 0 4px; }
-  input { width: 100%; padding: 10px 12px; font: inherit; color: var(--text);
+  input, select, textarea { width: 100%; padding: 9px 12px; font: inherit; color: var(--text);
           background: var(--card); border: 1px solid var(--line); border-radius: 6px; }
-  input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-  button { font: inherit; font-weight: 600; padding: 10px 16px; border: 0; border-radius: 6px;
+  input:disabled, select:disabled, textarea:disabled { opacity: .6; }
+  input:read-only { background: var(--bg); }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: 3px solid var(--accent); outline-offset: 2px; }
+  button { font: inherit; font-weight: 600; padding: 9px 16px; border: 0; border-radius: 6px;
            background: var(--accent); color: var(--accent-text); cursor: pointer; margin-top: 18px; }
   button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); margin-top: 0; }
-  button:disabled { opacity: .6; cursor: wait; }
-  .error { color: var(--error); min-height: 1.4em; margin: 12px 0 0; }
-  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; }
+  button.linkbtn { background: none; color: var(--accent); padding: 0; margin: 0; text-decoration: underline; border: 0; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .error { color: var(--error); min-height: 1.4em; margin: 10px 0 0; }
+  .ok { color: var(--ok); }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
   .who { color: var(--muted); font-size: .9rem; }
   table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--muted); font-weight: 600; font-size: .9rem; }
   .scroll { overflow-x: auto; }
-  .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
-  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
-  .hidden { display: none; }
-  .notice { font-size: .85rem; color: var(--muted); margin-top: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .grid .wide { grid-column: 1 / -1; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; }
+  .row button { margin-top: 0; white-space: nowrap; }
+  .hidden { display: none !important; }
+  .notice { font-size: .9rem; color: var(--muted); }
+  fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .dim { opacity: .65; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choice { position: relative; margin: 0; font-weight: 600; display: block; }
+  .choice input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .choice span { display: inline-block; padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+  .choice input:checked + span { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .choice input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .choice input:disabled + span { opacity: .55; }
+  .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 12px; }
+  .checks label { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 6px 0; }
+  .checks input { width: auto; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .tab.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .entry { border-top: 1px solid var(--line); padding: 12px 0; }
+  .prewrap { white-space: pre-wrap; margin: 6px 0 0; }
+  .subform { border-top: 2px solid var(--line); margin-top: 16px; padding-top: 4px; }
+  .case-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
 <main>
+
+  <!-- TOP BAR (after login) -->
+  <div id="topbar" class="bar hidden">
+    <div>
+      <strong>Case Management</strong>
+      <div id="who" class="who"></div>
+    </div>
+    <button id="logout-btn" class="secondary" type="button">Sign out</button>
+  </div>
 
   <!-- LOGIN -->
   <section id="login-view" class="card" style="max-width:420px;margin:8vh auto 0;">
@@ -61,43 +98,152 @@
     </form>
   </section>
 
-  <!-- APP -->
-  <section id="app-view" class="hidden">
+  <!-- CASE LIST -->
+  <section id="list-view" class="hidden">
     <div class="bar">
-      <div>
-        <h1>Cases</h1>
-        <div id="who" class="who"></div>
-      </div>
-      <button id="logout-btn" class="secondary" type="button">Sign out</button>
+      <h1>Cases</h1>
+      <button id="new-btn" type="button" style="margin-top:0">New case</button>
     </div>
-
-    <div class="card" style="margin-bottom:16px;">
-      <h2>Open a new case</h2>
-      <form id="case-form">
-        <div class="grid">
-          <div>
-            <label for="case-number">Case number</label>
-            <input id="case-number" required placeholder="2026-0001">
-          </div>
-          <div>
-            <label for="case-title">Title</label>
-            <input id="case-title" required placeholder="Fictional burglary, High Street">
-          </div>
-        </div>
-        <button type="submit">Create case</button>
-        <p id="case-error" class="error" role="alert"></p>
-      </form>
-    </div>
-
     <div class="card">
-      <h2>Your cases</h2>
-      <div class="scroll">
+      <div class="grid">
+        <div>
+          <label for="search">Search by number or title</label>
+          <input id="search" type="search">
+        </div>
+        <div>
+          <label for="filter-division">Division</label>
+          <select id="filter-division">
+            <option value="">All divisions</option>
+            <option value="major_crimes">Major Crimes Division</option>
+            <option value="organised_crime">Organised Crime Division</option>
+          </select>
+        </div>
+      </div>
+      <div class="scroll" style="margin-top:12px">
         <table>
-          <thead><tr><th>Number</th><th>Title</th><th>Status</th><th>Opened</th></tr></thead>
+          <thead><tr><th>Case number</th><th>Title</th><th>Division</th><th>Status</th><th>Investigating officer</th><th>Opened</th></tr></thead>
           <tbody id="case-rows"></tbody>
         </table>
       </div>
-      <p id="empty" class="notice hidden">No cases yet. Create one above.</p>
+      <p id="empty" class="notice hidden">No cases found.</p>
+      <p id="list-error" class="error" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- CASE VIEW -->
+  <section id="case-view" class="hidden">
+    <div class="bar">
+      <div>
+        <h1 id="case-heading">Case</h1>
+      </div>
+      <button id="back-btn" class="secondary" type="button">Back to cases</button>
+    </div>
+    <p id="readonly-note" class="notice hidden">Only the investigating officer, supervisors and admins can edit this case. You can still add to the file sections below if you are assigned to it.</p>
+
+    <form id="case-form">
+      <fieldset id="case-fields">
+
+        <div class="card">
+          <h2>Case identification</h2>
+          <div class="grid">
+            <div>
+              <label for="f-number">Case number</label>
+              <div class="row">
+                <input id="f-number" required maxlength="40">
+                <button id="gen-btn" class="secondary" type="button">Generate number</button>
+              </div>
+            </div>
+            <div>
+              <label for="f-division">Division</label>
+              <select id="f-division" required>
+                <option value="">Choose a division</option>
+                <option value="major_crimes">Major Crimes Division</option>
+                <option value="organised_crime">Organised Crime Division</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label for="f-title">Case title</label>
+              <input id="f-title" required maxlength="200">
+            </div>
+            <div>
+              <label for="f-opened">Date opened</label>
+              <input id="f-opened" type="date" required>
+            </div>
+            <div>
+              <label for="f-related">Related case numbers</label>
+              <input id="f-related" placeholder="Separate with commas">
+            </div>
+            <div class="wide">
+              <label id="origin-label">Case origin</label>
+              <div id="origin-choices" class="choices" role="radiogroup" aria-labelledby="origin-label"></div>
+              <label for="f-origin-other">If other, describe</label>
+              <input id="f-origin-other" maxlength="200">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Assignment</h2>
+          <div class="grid">
+            <div>
+              <label for="f-officer">Investigating officer</label>
+              <select id="f-officer"></select>
+            </div>
+            <div>
+              <label for="f-prosecutor">Prosecutor</label>
+              <input id="f-prosecutor" maxlength="200">
+            </div>
+            <div class="wide">
+              <label id="assist-label">Assistant officers</label>
+              <div id="assistants" class="checks" role="group" aria-labelledby="assist-label"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Current status</h2>
+          <div id="status-choices" class="choices" role="radiogroup" aria-label="Current status"></div>
+        </div>
+
+        <div class="card" id="closure-card">
+          <h2>Closure</h2>
+          <p class="notice">Available when the status is set to Closed.</p>
+          <fieldset id="closing-fields">
+            <label id="closing-label">Closing reason</label>
+            <div id="closing-choices" class="choices" role="radiogroup" aria-labelledby="closing-label"></div>
+            <div class="grid">
+              <div>
+                <label for="f-closing-other">If other, describe</label>
+                <input id="f-closing-other" maxlength="200">
+              </div>
+              <div>
+                <label for="f-closed-on">Date closed</label>
+                <input id="f-closed-on" type="date">
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+      </fieldset>
+      <div class="case-actions">
+        <button id="save-btn" type="submit">Save case</button>
+        <span id="case-msg" class="error" role="alert"></span>
+      </div>
+    </form>
+
+    <!-- FILE SECTIONS -->
+    <div id="files" class="card hidden" style="margin-top:24px">
+      <h2>File sections</h2>
+      <div id="tabs" class="tabs"></div>
+      <p id="tab-msg" class="error" role="alert"></p>
+      <div id="tab-body"></div>
+    </div>
+
+    <!-- DOCUMENT CONTROL (admin only) -->
+    <div id="doc-control" class="card hidden">
+      <h2>Document control</h2>
+      <p class="notice">Visible to administrators only.</p>
+      <div id="dc-body"></div>
     </div>
   </section>
 
@@ -105,106 +251,480 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
-  // ====== EDIT THESE THREE LINES ======
-  const SUPABASE_URL = 'https://oqdbxvnvoonmpweqfbog.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_ZfKpRtfUsTAN_JNAjgMROA_danvuGsW';   // anon key ONLY. Never the service_role key.
-  const EMAIL_DOMAIN = 'example.com';                    // must match the fake emails you created users with
-  // ====================================
+  // ====== EDIT THESE THREE LINES (copy them from your current index.html) ======
+  const SUPABASE_URL = 'PASTE_YOUR_PROJECT_URL_HERE';
+  const SUPABASE_ANON_KEY = 'PASTE_YOUR_ANON_KEY_HERE';   // anon key ONLY. Never the service_role key.
+  const EMAIL_DOMAIN = 'example.com';
+  // ============================================================================
 
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
   const $ = (id) => document.getElementById(id);
-  const loginView = $('login-view'), appView = $('app-view');
 
-  function show(loggedIn) {
-    loginView.classList.toggle('hidden', loggedIn);
-    appView.classList.toggle('hidden', !loggedIn);
+  const LABELS = {
+    division: { major_crimes: 'Major Crimes Division', organised_crime: 'Organised Crime Division' },
+    origin:   { call_for_service: 'Call for service', referral: 'Referral', self_initiated: 'Self-initiated', other: 'Other' },
+    status:   { active: 'Active', suspended: 'Suspended', inactive_cold: 'Inactive/Cold', closed: 'Closed' },
+    closing:  { cleared_by_arrest: 'Cleared by arrest', cleared_by_exception: 'Cleared by exception', unfounded: 'Unfounded', other: 'Other' },
+    intRole:  { suspect: 'Suspect', witness: 'Witness', victim: 'Victim', informant: 'Informant', other: 'Other' },
+    exStatus: { in_custody: 'In custody', submitted_to_lab: 'Submitted to lab', returned: 'Returned', destroyed: 'Destroyed' },
+    legType:  { search_warrant: 'Search warrant', arrest_warrant: 'Arrest warrant', subpoena: 'Subpoena', production_order: 'Production order', other: 'Other' },
+    legStatus:{ requested: 'Requested', issued: 'Issued', executed: 'Executed', expired: 'Expired', denied: 'Denied' },
+    classif:  { unclassified: 'Unclassified', restricted: 'Restricted', confidential: 'Confidential' }
+  };
+
+  // ---------- state ----------
+  let me = null, people = [], peopleById = new Map();
+  let allCases = [], current = null, assistantsNow = new Set();
+  let canManage = true, activeTab = 'interviews';
+
+  // ---------- small helpers ----------
+  function h(tag, props = {}, ...kids) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else if (k in n) n[k] = v;
+      else n.setAttribute(k, v);
+    }
+    for (const kid of kids.flat()) if (kid != null) n.append(kid);
+    return n;
+  }
+  const today = () => new Date().toISOString().slice(0, 10);
+  const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB') : '';
+  const fmtTime = (t) => t ? new Date(t).toLocaleString('en-GB') : '';
+  const nameOf = (id) => { const p = peopleById.get(id); return p ? (p.full_name || p.username) : 'Unknown'; };
+  const toEmail = (u) => u.trim().toLowerCase() + '@' + EMAIL_DOMAIN;
+  const isLead = () => me && (me.role === 'supervisor' || me.role === 'admin');
+
+  function errText(error) {
+    if (error.code === '23505') return 'That reference is already in use.';
+    if (error.code === '23514') return 'Some details are missing or inconsistent. Check status, closure and dates.';
+    if (error.code === '42501') return 'You do not have permission to do that.';
+    return 'Something went wrong. Check the details and try again.';
   }
 
-  // Turn "jsmith" into "jsmith@example.com" so people only ever see a username.
-  function toEmail(username) {
-    return username.trim().toLowerCase() + '@' + EMAIL_DOMAIN;
+  function showView(v) {
+    for (const id of ['login-view', 'list-view', 'case-view']) $(id).classList.toggle('hidden', id !== v + '-view');
+    $('topbar').classList.toggle('hidden', v === 'login');
   }
 
+  function choiceGroup(containerId, name, labels) {
+    $(containerId).replaceChildren(...Object.entries(labels).map(([val, text]) =>
+      h('label', { className: 'choice' }, h('input', { type: 'radio', name, value: val }), h('span', { text }))));
+  }
+  const getChoice = (name) => { const r = document.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : null; };
+  const setChoice = (name, val) => document.querySelectorAll('input[name="' + name + '"]').forEach(r => { r.checked = (r.value === val); });
+
+  // ---------- login / logout ----------
   $('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     $('login-error').textContent = '';
     $('login-btn').disabled = true;
-    const { error } = await db.auth.signInWithPassword({
-      email: toEmail($('username').value),
-      password: $('password').value
-    });
+    const { error } = await db.auth.signInWithPassword({ email: toEmail($('username').value), password: $('password').value });
     $('login-btn').disabled = false;
-    if (error) {
-      // Same message whatever went wrong, so it doesn't reveal which usernames exist.
-      $('login-error').textContent = 'Username or password is incorrect.';
-      return;
-    }
+    if (error) { $('login-error').textContent = 'Username or password is incorrect.'; return; }
     $('password').value = '';
     await startApp();
   });
 
   $('logout-btn').addEventListener('click', async () => {
     await db.auth.signOut();
-    show(false);
+    me = null; current = null; allCases = [];
+    showView('login');
   });
 
   async function startApp() {
-    const { data: userData } = await db.auth.getUser();
-    if (!userData || !userData.user) { show(false); return; }
-
-    const { data: profile } = await db.from('profiles')
-      .select('username, role, active').eq('id', userData.user.id).single();
-
-    if (!profile || !profile.active) {
+    const { data: u } = await db.auth.getUser();
+    if (!u || !u.user) { showView('login'); return; }
+    const { data: profs, error } = await db.from('profiles').select('id, username, full_name, badge_number, role, active');
+    const mine = profs && profs.find(p => p.id === u.user.id);
+    if (error || !mine || !mine.active) {
       await db.auth.signOut();
       $('login-error').textContent = 'This account has no access. Ask an administrator.';
-      show(false);
+      showView('login');
       return;
     }
-    $('who').textContent = 'Signed in as ' + profile.username + ' (' + profile.role + ')';
-    show(true);
-    await loadCases();
+    me = mine;
+    peopleById = new Map(profs.map(p => [p.id, p]));
+    people = profs.filter(p => p.active).sort((a, b) => (a.full_name || a.username).localeCompare(b.full_name || b.username));
+    $('who').textContent = 'Signed in as ' + (me.full_name || me.username) + ' (' + me.role + ')';
+
+    choiceGroup('origin-choices', 'origin', LABELS.origin);
+    choiceGroup('status-choices', 'status', LABELS.status);
+    choiceGroup('closing-choices', 'closing', LABELS.closing);
+    $('f-officer').replaceChildren(h('option', { value: '', text: 'Not assigned' }),
+      ...people.map(p => h('option', { value: p.id, text: personLabel(p) })));
+    await showList();
+  }
+  const personLabel = (p) => (p.full_name || p.username) + (p.badge_number ? ' (' + p.badge_number + ')' : '');
+
+  // ---------- case list ----------
+  async function showList() {
+    current = null;
+    showView('list');
+    $('list-error').textContent = '';
+    const { data, error } = await db.from('cases')
+      .select('id, case_number, title, division, status, investigating_officer, date_opened')
+      .order('date_opened', { ascending: false }).order('created_at', { ascending: false });
+    if (error) { $('list-error').textContent = 'Could not load cases.'; return; }
+    allCases = data;
+    renderList();
   }
 
-  async function loadCases() {
-    const { data, error } = await db.from('cases')
-      .select('case_number, title, status, created_at')
-      .order('created_at', { ascending: false });
-    const body = $('case-rows');
-    body.replaceChildren();
-    if (error) { $('case-error').textContent = 'Could not load cases.'; return; }
-    $('empty').classList.toggle('hidden', data.length > 0);
-    for (const c of data) {
-      const tr = document.createElement('tr');
-      // textContent (not innerHTML) so typed text can never run as code
-      for (const value of [c.case_number, c.title, c.status, new Date(c.created_at).toLocaleDateString('en-GB')]) {
-        const td = document.createElement('td');
-        td.textContent = value;
-        tr.appendChild(td);
-      }
-      body.appendChild(tr);
+  function renderList() {
+    const q = $('search').value.trim().toLowerCase(), dv = $('filter-division').value;
+    const rows = allCases.filter(c => (!dv || c.division === dv) &&
+      (!q || c.case_number.toLowerCase().includes(q) || c.title.toLowerCase().includes(q)));
+    $('case-rows').replaceChildren(...rows.map(c => h('tr', {},
+      h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: c.case_number, onclick: () => openCase(c.id) })),
+      h('td', { text: c.title }),
+      h('td', { text: LABELS.division[c.division] }),
+      h('td', { text: LABELS.status[c.status] }),
+      h('td', { text: c.investigating_officer ? nameOf(c.investigating_officer) : 'Not assigned' }),
+      h('td', { text: fmtDate(c.date_opened) }))));
+    $('empty').classList.toggle('hidden', rows.length > 0);
+  }
+  $('search').addEventListener('input', renderList);
+  $('filter-division').addEventListener('change', renderList);
+  $('new-btn').addEventListener('click', newCase);
+  $('back-btn').addEventListener('click', showList);
+
+  // ---------- case form ----------
+  function renderAssistants() {
+    $('assistants').replaceChildren(...people.map(p => h('label', {},
+      h('input', { type: 'checkbox', value: p.id, checked: assistantsNow.has(p.id) }),
+      personLabel(p))));
+  }
+
+  function applyState() {
+    const closed = getChoice('status') === 'closed';
+    $('closing-fields').disabled = !closed;
+    $('closure-card').classList.toggle('dim', !closed);
+    $('f-origin-other').disabled = getChoice('origin') !== 'other';
+    $('f-closing-other').disabled = !(closed && getChoice('closing') === 'other');
+  }
+  $('case-form').addEventListener('change', applyState);
+
+  function fillForm(c) {
+    $('f-number').value = c ? c.case_number : '';
+    $('f-number').readOnly = !!c;
+    $('gen-btn').classList.toggle('hidden', !!c);
+    $('f-title').value = c ? c.title : '';
+    $('f-division').value = c ? c.division : '';
+    $('f-opened').value = c ? c.date_opened : today();
+    setChoice('origin', c ? c.origin : null);
+    $('f-origin-other').value = (c && c.origin_other) || '';
+    $('f-related').value = c ? c.related_case_numbers.join(', ') : '';
+    $('f-officer').value = c ? (c.investigating_officer || '') : me.id;
+    $('f-prosecutor').value = (c && c.prosecutor) || '';
+    setChoice('status', c ? c.status : 'active');
+    setChoice('closing', c ? c.closing_reason : null);
+    $('f-closing-other').value = (c && c.closing_other) || '';
+    $('f-closed-on').value = (c && c.date_closed) || '';
+    renderAssistants();
+    canManage = !c || isLead() || c.investigating_officer === me.id;
+    $('case-fields').disabled = !canManage;
+    $('save-btn').classList.toggle('hidden', !canManage);
+    $('save-btn').textContent = c ? 'Save changes' : 'Create case';
+    $('readonly-note').classList.toggle('hidden', canManage);
+    $('case-heading').textContent = c ? c.case_number : 'New case';
+    $('case-msg').textContent = '';
+    applyState();
+  }
+
+  function newCase() {
+    current = null; assistantsNow = new Set();
+    fillForm(null);
+    showView('case');
+    renderFiles(); renderDocControl();
+  }
+
+  async function openCase(id) {
+    const { data: c, error } = await db.from('cases').select('*').eq('id', id).single();
+    if (error || !c) { $('list-error').textContent = 'Could not open that case.'; return; }
+    const { data: asg } = await db.from('case_assistants').select('officer_id').eq('case_id', id);
+    current = c;
+    assistantsNow = new Set((asg || []).map(a => a.officer_id));
+    activeTab = 'interviews';
+    fillForm(c);
+    showView('case');
+    renderFiles(); renderDocControl();
+  }
+
+  function genNumber(division) {
+    const prefix = division === 'organised_crime' ? 'OCD' : 'MCD';
+    const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+    return prefix + '-' + new Date().getFullYear() + '-' + String(n).padStart(6, '0');
+  }
+  $('gen-btn').addEventListener('click', () => {
+    if (!$('f-division').value) { setMsg('Choose a division first, then generate the number.'); return; }
+    setMsg('');
+    $('f-number').value = genNumber($('f-division').value);
+  });
+
+  function setMsg(text, good) {
+    $('case-msg').textContent = text;
+    $('case-msg').className = good ? 'ok' : 'error';
+  }
+
+  async function syncAssistants(caseId, investigator) {
+    const wanted = new Set([...document.querySelectorAll('#assistants input:checked')].map(i => i.value));
+    wanted.delete(investigator);
+    const add = [...wanted].filter(x => !assistantsNow.has(x));
+    const del = [...assistantsNow].filter(x => !wanted.has(x));
+    if (add.length) {
+      const { error } = await db.from('case_assistants').insert(add.map(o => ({ case_id: caseId, officer_id: o })));
+      if (error) return false;
     }
+    for (const o of del) {
+      const { error } = await db.from('case_assistants').delete().eq('case_id', caseId).eq('officer_id', o);
+      if (error) return false;
+    }
+    return true;
   }
 
   $('case-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    $('case-error').textContent = '';
-    const { error } = await db.from('cases').insert({
-      case_number: $('case-number').value.trim(),
-      title: $('case-title').value.trim()
-    });
-    if (error) {
-      $('case-error').textContent = error.code === '23505'
-        ? 'That case number already exists.'
-        : 'Could not create the case.';
-      return;
+    setMsg('');
+    const status = getChoice('status'), origin = getChoice('origin'), closing = getChoice('closing');
+    if (!origin) return setMsg('Choose a case origin.');
+    if (origin === 'other' && !$('f-origin-other').value.trim()) return setMsg('Describe the other origin.');
+    if (status === 'closed') {
+      if (!closing) return setMsg('Choose a closing reason.');
+      if (closing === 'other' && !$('f-closing-other').value.trim()) return setMsg('Describe the other closing reason.');
+      if (!$('f-closed-on').value) return setMsg('Enter the date closed.');
     }
-    $('case-form').reset();
-    await loadCases();
+    const closed = status === 'closed';
+    const row = {
+      case_number: $('f-number').value.trim(),
+      title: $('f-title').value.trim(),
+      division: $('f-division').value,
+      date_opened: $('f-opened').value,
+      origin,
+      origin_other: origin === 'other' ? $('f-origin-other').value.trim() : null,
+      related_case_numbers: $('f-related').value.split(',').map(s => s.trim()).filter(Boolean),
+      investigating_officer: $('f-officer').value || null,
+      prosecutor: $('f-prosecutor').value.trim() || null,
+      status,
+      closing_reason: closed ? closing : null,
+      closing_other: closed && closing === 'other' ? $('f-closing-other').value.trim() : null,
+      date_closed: closed ? $('f-closed-on').value : null
+    };
+
+    $('save-btn').disabled = true;
+    let saved, error;
+    if (current) {
+      const r = await db.from('cases').update(row).eq('id', current.id).select();
+      error = r.error; saved = r.data && r.data[0];
+      if (!error && !saved) error = { code: '42501' };   // RLS blocked it silently
+    } else {
+      const r = await db.from('cases').insert(row).select().single();
+      error = r.error; saved = r.data;
+    }
+    $('save-btn').disabled = false;
+    if (error) return setMsg(error.code === '23505' ? 'That case number is already in use. Generate a new one.' : errText(error));
+
+    const ok = canManage ? await syncAssistants(saved.id, row.investigating_officer) : true;
+    await openCase(saved.id);
+    setMsg(ok ? 'Saved.' : 'Case saved, but the assistant officers could not be updated.', ok);
   });
 
-  // If the person already has a valid session (page refresh), skip the login screen.
+  // ---------- file sections ----------
+  const TABS = [['interviews', 'Interview reports'], ['exhibits', 'Exhibit lists'], ['legal', 'Legal processes']];
+  const SOON = ['Criminal organisation files', 'Person files', 'Suspect files'];
+  const canWork = () => canManage || assistantsNow.has(me.id);
+
+  function renderFiles() {
+    const box = $('files');
+    if (!current) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    $('tabs').replaceChildren(
+      ...TABS.map(([k, t]) => h('button', { type: 'button', className: 'secondary tab' + (k === activeTab ? ' active' : ''), text: t,
+        onclick: () => { activeTab = k; renderFiles(); } })),
+      ...SOON.map(t => h('button', { type: 'button', className: 'secondary tab', disabled: true, title: 'Coming soon', text: t + ' (soon)' })));
+    renderTab();
+  }
+
+  async function renderTab() {
+    $('tab-msg').textContent = '';
+    const body = $('tab-body');
+    body.replaceChildren(h('p', { className: 'notice', text: 'Loading...' }));
+    if (activeTab === 'interviews') await tabInterviews(body);
+    else if (activeTab === 'exhibits') await tabExhibits(body);
+    else await tabLegal(body);
+  }
+
+  function dataTable(headers, rows) {
+    return h('div', { className: 'scroll' }, h('table', {},
+      h('thead', {}, h('tr', {}, headers.map(t => h('th', { text: t })))),
+      h('tbody', {}, rows.map(r => h('tr', {}, r.map(c => h('td', {}, c)))))));
+  }
+
+  function statusSelect(table, id, options, value) {
+    const s = h('select');
+    for (const [v, t] of Object.entries(options)) s.append(h('option', { value: v, text: t }));
+    s.value = value;
+    s.addEventListener('change', async () => {
+      const { data, error } = await db.from(table).update({ status: s.value }).eq('id', id).select();
+      if (error || !data.length) { await renderTab(); $('tab-msg').textContent = 'You do not have permission to change that.'; }
+    });
+    return s;
+  }
+
+  // Builds an "add" form. Empty fields are left out so database defaults apply.
+  function addForm(title, fields, table) {
+    const msg = h('p', { className: 'error', role: 'alert' });
+    const inputs = {};
+    const form = h('form', { className: 'subform' }, h('h3', { text: title }));
+    for (const f of fields) {
+      let input;
+      if (f.type === 'select') {
+        input = h('select');
+        for (const [v, t] of Object.entries(f.options)) input.append(h('option', { value: v, text: t }));
+      } else if (f.type === 'textarea') input = h('textarea', { rows: 4 });
+      else input = h('input', { type: f.type || 'text' });
+      input.id = 'sf-' + f.key;
+      if (f.required) input.required = true;
+      if (f.value !== undefined) input.value = f.value;
+      inputs[f.key] = input;
+      form.append(h('label', { htmlFor: input.id, text: f.label }), input);
+    }
+    form.append(h('button', { type: 'submit', text: 'Add' }), msg);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      const row = { case_id: current.id };
+      for (const f of fields) { const v = inputs[f.key].value.trim(); if (v !== '') row[f.key] = v; }
+      const { error } = await db.from(table).insert(row);
+      if (error) { msg.textContent = errText(error); return; }
+      await renderTab();
+    });
+    return form;
+  }
+
+  async function tabInterviews(body) {
+    const { data, error } = await db.from('interview_reports').select('*').eq('case_id', current.id)
+      .order('interview_date', { ascending: false }).order('created_at', { ascending: false });
+    body.replaceChildren();
+    if (error) { body.append(h('p', { className: 'error', text: 'Could not load interview reports.' })); return; }
+    if (!data.length) body.append(h('p', { className: 'notice', text: 'No interview reports yet. Reports cannot be edited once added; add a new report to correct one.' }));
+    for (const r of data) body.append(h('div', { className: 'entry' },
+      h('strong', { text: r.interviewee_name + ' (' + LABELS.intRole[r.interviewee_role] + ')' }),
+      h('div', { className: 'who', text: fmtDate(r.interview_date) + (r.location ? ' at ' + r.location : '') + '. Interviewed by ' + nameOf(r.interviewed_by) + '.' }),
+      h('p', { className: 'prewrap', text: r.summary })));
+    if (canWork()) body.append(addForm('Add an interview report', [
+      { key: 'interviewee_name', label: 'Interviewee name', required: true },
+      { key: 'interviewee_role', label: 'Interviewee role', type: 'select', options: LABELS.intRole },
+      { key: 'interview_date', label: 'Interview date', type: 'date', value: today(), required: true },
+      { key: 'location', label: 'Location' },
+      { key: 'summary', label: 'Summary of interview', type: 'textarea', required: true }
+    ], 'interview_reports'));
+  }
+
+  async function tabExhibits(body) {
+    const { data, error } = await db.from('exhibits').select('*').eq('case_id', current.id).order('created_at');
+    body.replaceChildren();
+    if (error) { body.append(h('p', { className: 'error', text: 'Could not load exhibits.' })); return; }
+    if (!data.length) body.append(h('p', { className: 'notice', text: 'No exhibits listed yet.' }));
+    else body.append(dataTable(['Reference', 'Description', 'Collected', 'Stored at', 'Status'], data.map(x => [
+      x.exhibit_ref,
+      x.description + (x.location_found ? ' (found: ' + x.location_found + ')' : ''),
+      (x.collected_on ? fmtDate(x.collected_on) + ' by ' : 'By ') + nameOf(x.collected_by),
+      x.storage_location || '',
+      canManage ? statusSelect('exhibits', x.id, LABELS.exStatus, x.status) : LABELS.exStatus[x.status]
+    ])));
+    if (canWork()) body.append(addForm('Add an exhibit', [
+      { key: 'exhibit_ref', label: 'Exhibit reference', required: true },
+      { key: 'description', label: 'Description', type: 'textarea', required: true },
+      { key: 'collected_on', label: 'Date collected', type: 'date' },
+      { key: 'location_found', label: 'Where it was found' },
+      { key: 'storage_location', label: 'Where it is stored' }
+    ], 'exhibits'));
+  }
+
+  async function tabLegal(body) {
+    const { data, error } = await db.from('legal_processes').select('*').eq('case_id', current.id).order('created_at');
+    body.replaceChildren();
+    if (error) { body.append(h('p', { className: 'error', text: 'Could not load legal processes.' })); return; }
+    if (!data.length) body.append(h('p', { className: 'notice', text: 'No warrants, subpoenas or other legal processes yet.' }));
+    else body.append(dataTable(['Type', 'Reference', 'Issuing authority', 'Requested', 'Issued', 'Status'], data.map(x => [
+      h('div', {}, LABELS.legType[x.process_type], x.notes ? h('div', { className: 'who', text: x.notes }) : null),
+      x.reference_number || '',
+      x.issuing_authority || '',
+      fmtDate(x.date_requested),
+      fmtDate(x.date_issued),
+      canManage ? statusSelect('legal_processes', x.id, LABELS.legStatus, x.status) : LABELS.legStatus[x.status]
+    ])));
+    if (canWork()) body.append(addForm('Add a legal process', [
+      { key: 'process_type', label: 'Type', type: 'select', options: LABELS.legType },
+      { key: 'reference_number', label: 'Reference number' },
+      { key: 'issuing_authority', label: 'Issuing authority (e.g. court)' },
+      { key: 'status', label: 'Status', type: 'select', options: LABELS.legStatus },
+      { key: 'date_requested', label: 'Date requested', type: 'date' },
+      { key: 'date_issued', label: 'Date issued', type: 'date' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ], 'legal_processes'));
+  }
+
+  // ---------- document control (admin only; the database enforces this too) ----------
+  async function renderDocControl() {
+    const box = $('doc-control');
+    if (!current || !me || me.role !== 'admin') { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const body = $('dc-body');
+    body.replaceChildren(h('p', { className: 'notice', text: 'Loading...' }));
+
+    const { data: dc } = await db.from('document_control').select('*').eq('case_id', current.id).maybeSingle();
+    const { data: hist } = await db.from('audit_log').select('at, user_id, table_name, action')
+      .eq('row_id', current.id).order('at', { ascending: false }).limit(50);
+
+    const v = dc || { version: '1.0', classification: 'restricted' };
+    const version = h('input', { id: 'dc-version', value: v.version, required: true });
+    const classif = h('select', { id: 'dc-class' }, Object.entries(LABELS.classif).map(([k, t]) => h('option', { value: k, text: t })));
+    classif.value = v.classification;
+    const retention = h('input', { id: 'dc-retention', type: 'date', value: v.retention_review_date || '' });
+    const reviewed = h('input', { id: 'dc-reviewed', type: 'date', value: v.last_reviewed_on || '' });
+    const dist = h('textarea', { id: 'dc-dist', rows: 3, value: v.distribution_notes || '' });
+    const msg = h('span', { className: 'error', role: 'alert' });
+
+    const form = h('form', {},
+      h('div', { className: 'grid' },
+        h('div', {}, h('label', { htmlFor: 'dc-version', text: 'Version' }), version),
+        h('div', {}, h('label', { htmlFor: 'dc-class', text: 'Classification' }), classif),
+        h('div', {}, h('label', { htmlFor: 'dc-retention', text: 'Retention review date' }), retention),
+        h('div', {}, h('label', { htmlFor: 'dc-reviewed', text: 'Last reviewed on' }), reviewed),
+        h('div', { className: 'wide' }, h('label', { htmlFor: 'dc-dist', text: 'Distribution notes' }), dist)),
+      h('div', { className: 'case-actions' }, h('button', { type: 'submit', text: 'Save document control' }), msg));
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.className = 'error'; msg.textContent = '';
+      const { error } = await db.from('document_control').upsert({
+        case_id: current.id,
+        version: version.value.trim(),
+        classification: classif.value,
+        retention_review_date: retention.value || null,
+        last_reviewed_on: reviewed.value || null,
+        distribution_notes: dist.value.trim() || null,
+        updated_by: me.id,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'case_id' });
+      if (error) { msg.textContent = errText(error); return; }
+      await renderDocControl();
+    });
+
+    body.replaceChildren(
+      h('p', { className: 'who', text: 'Record created ' + fmtTime(current.created_at) + ' by ' + nameOf(current.created_by) +
+        '. Last updated ' + fmtTime(current.updated_at) + '.' }),
+      form,
+      h('h3', { text: 'Change history' }),
+      hist && hist.length
+        ? dataTable(['When', 'Who', 'Record', 'Action'], hist.map(a => [fmtTime(a.at), a.user_id ? nameOf(a.user_id) : 'System', a.table_name, a.action]))
+        : h('p', { className: 'notice', text: 'No history recorded yet.' }));
+  }
+
+  // If there is already a valid session (page refresh), skip the login screen.
+  showView('login');
   db.auth.getSession().then(({ data }) => { if (data.session) startApp(); });
 </script>
 </body>
