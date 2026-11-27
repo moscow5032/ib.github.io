@@ -127,7 +127,7 @@
       </div>
       <div class="scroll" style="margin-top:12px">
         <table>
-          <thead><tr><th>Case number</th><th>Status</th><th>Investigating officer</th><th>Opened</th><th><span class="sr">More</span></th></tr></thead>
+          <thead><tr><th>Case number</th><th>Case title</th><th>Status</th><th>Opened</th><th><span class="sr">More</span></th></tr></thead>
           <tbody id="case-rows"></tbody>
         </table>
       </div>
@@ -192,6 +192,7 @@
             <div><label for="f-division">Division *</label><select id="f-division" required><option value="">Select division</option><option value="major_crimes">Major Crimes Division (MCD)</option><option value="organised_crime">Organised Crime Division (OCD)</option></select></div>
             <div><label for="f-opened">Date Opened *</label><input id="f-opened" type="date" required></div>
             <div><label>Case Subject *</label><div id="type-choices" class="choices" role="radiogroup" aria-label="Case subject"></div></div>
+            <div class="wide"><label for="f-title">Case Title *</label><input id="f-title" required maxlength="200" placeholder="Short descriptive title for the case"></div>
             <div class="wide"><label for="f-number">Case Number *</label><div class="row"><input id="f-number" required maxlength="24" placeholder="OCD-1126-ORG-7236" autocapitalize="characters"><button id="gen-btn" class="secondary" type="button">Generate</button></div><p class="notice" id="number-hint">Format: Division–MMYY–Subject–4 digits.</p></div>
             <div class="wide"><label>Case Origin *</label><div id="origin-choices" class="choices" role="radiogroup" aria-label="Case origin"></div><label for="f-origin-other">Other origin description</label><input id="f-origin-other" maxlength="200" placeholder="Specify other origin"></div>
             <div class="wide"><label>Related Case Numbers</label><div id="related-case-list" class="choices related-case-choices"></div></div>
@@ -272,12 +273,12 @@
 
   // What the "Add" menu offers, and the fields of the three flexible file types
   const FILE_TYPES = {
-    interview:    'Interview report',
-    exhibit:      'Exhibit list',
-    legal:        'Legal process',
-    organisation: 'Criminal organization file',
-    person:       'Suspect file',
-    suspects:     'Group control file'
+    interview:    'Add interview report',
+    exhibit:      'Add exhibit list',
+    legal:        'Add legal process',
+    organisation: 'Add criminal organization file',
+    person:       'Suspect File',
+    suspects:     'Add group control file'
   };
   const CASE_FILE_FIELDS = {
     organisation: [
@@ -412,20 +413,20 @@
 
   function renderList() {
     const q = $('search').value.trim().toLowerCase();
-    const rows = allCases.filter(c => (!q || c.case_number.toLowerCase().includes(q)));
+    const rows = allCases.filter(c => (!q || c.case_number.toLowerCase().includes(q) || (c.case_title || '').toLowerCase().includes(q)));
     const statusOrder = ['active', 'reopened', 'draft', 'inactive_cold', 'suspended', 'closed'];
     const body = $('case-rows');
     body.replaceChildren();
     
     for (const status of statusOrder) {
       const items = rows.filter(c => c.status === status);
-      body.append(h('tr', { className: 'status-group-row' }, h('td', { colSpan: 5, text: LABELS.status[status] + ' (' + items.length + ')' })));
+      body.append(h('tr', { className: 'status-group-row' }, h('td', { colSpan: 4, text: LABELS.status[status] + ' (' + items.length + ')' })));
       if (!items.length) {
-        body.append(h('tr', { className: 'status-empty-row' }, h('td', { colSpan: 5, text: 'No ' + LABELS.status[status].toLowerCase() + ' cases.' })));
+        body.append(h('tr', { className: 'status-empty-row' }, h('td', { colSpan: 4, text: 'No ' + LABELS.status[status].toLowerCase() + ' cases.' })));
         continue;
       }
       for (const c of items) {
-        const detail = h('tr', { className: 'hidden' }, h('td', { colSpan: 5 }));
+        const detail = h('tr', { className: 'hidden' }, h('td', { colSpan: 4 }));
         const sel = h('select', { className: 'seemore', 'aria-label': 'See more about ' + c.case_number },
           h('option', { value: '', text: 'See more' }),
           SEE_MORE.map(([k, t]) => h('option', { value: k, text: t })));
@@ -439,8 +440,8 @@
         body.append(
           h('tr', {},
             h('td', {}, h('button', { type: 'button', className: 'linkbtn', text: c.case_number, onclick: () => openCase(c.id) })),
+            h('td', { text: c.case_title || '—' }),
             h('td', { text: LABELS.status[c.status] || c.status }),
-            h('td', { text: c.status === 'closed' ? 'Unassigned' : nameOf(c.investigating_officer_id || c.created_by) }),
             h('td', { text: fmtDate(c.date_opened) }),
             h('td', {}, sel)),
           detail);
@@ -454,6 +455,7 @@
     if (section === 'identification') {
       wrap.append(kv([
         ['Case number', c.case_number],
+        ['Case title', c.case_title || '—'],
         ['Division', LABELS.division[c.division]],
         ['Type of investigation', LABELS.invType[c.investigation_type]],
         ['Date opened', fmtDate(c.date_opened)],
@@ -539,6 +541,7 @@
 
   function fillForm(c) {
     const editing = !!c;
+    $('f-title').value = c ? (c.case_title || '') : '';
     $('f-number').value = c ? c.case_number : '';
     $('f-number').readOnly = editing;
     $('gen-btn').classList.toggle('hidden', editing);
@@ -649,6 +652,8 @@
     e.preventDefault();
     setMsg('');
     const status = getChoice('status'), origin = getChoice('origin'), closing = getChoice('closing'), type = getChoice('invtype'), division = $('f-division').value;
+    const caseTitle = $('f-title').value.trim();
+    if (!caseTitle) return setMsg('Enter a case title.');
     if (!current) {
       if (!type) return setMsg('Choose a case subject.');
       if (!division) return setMsg('Choose a division.');
@@ -667,6 +672,7 @@
     if (current && current.status === 'reopened' && status === 'active') return setMsg('Reopened cases cannot be returned to Active.');
     if (current && current.status === 'closed' && status !== 'reopened' && status !== 'closed') return setMsg('Use Reopen to reopen a closed case.');
     const row = {
+      case_title: caseTitle,
       date_opened: $('f-opened').value,
       investigating_officer_assigned_on: $('f-officer-date').value || null,
       prosecutor_assigned_on: $('f-prosecutor-date').value || null,
